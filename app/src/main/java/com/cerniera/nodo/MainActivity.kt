@@ -104,7 +104,7 @@ class MainActivity : Activity(), ThreadView.Listener {
         handle(intent)
     }
 
-    override fun onNewIntent(i: Intent) { super.onNewIntent(i); handle(i) }
+    override fun onNewIntent(i: Intent) { super.onNewIntent(i); if (::thread.isInitialized) handle(i) }
 
     /** From a notification (a knot's id), or the emulator's walk-through (open, add). */
     private fun handle(i: Intent?) {
@@ -123,6 +123,8 @@ class MainActivity : Activity(), ThreadView.Listener {
 
     override fun onResume() {
         super.onResume()
+        // After a crash Nodo opens on the report alone (Crash.show): nothing else exists yet
+        if (!::thread.isInitialized) return
         // Done or Later may have been pressed on a notification while Nodo was away
         if (tieField == null) { knots = Store.load(this); thread.knots = knots; open?.let { id -> knots.firstOrNull { it.id == id }?.let { showDetail(it) } ?: closeDetail() } }
         Reminders.arm(this, knots)
@@ -132,6 +134,8 @@ class MainActivity : Activity(), ThreadView.Listener {
 
     override fun onConfigurationChanged(c: Configuration) {
         super.onConfigurationChanged(c)
+        // After a crash Nodo opens on the report alone (Crash.show): nothing else exists yet
+        if (!::thread.isInitialized) return
         // Folding or turning: the thread lays itself out again, and the detail follows it
         root.post {
             when {
@@ -145,6 +149,7 @@ class MainActivity : Activity(), ThreadView.Listener {
     @Deprecated("Back closes what came forward")
     override fun onBackPressed() {
         when {
+            !::thread.isInitialized -> @Suppress("DEPRECATION") super.onBackPressed()
             tieField != null -> endTie()
             open != null && panelTransient -> closeDetail()
             else -> @Suppress("DEPRECATION") super.onBackPressed()
