@@ -63,7 +63,12 @@ for fin in VETRO CRISTALLO SMOKE MEMBRANE ROSSO AVORIO CARBONIO CERAMICA VISCONT
   adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget --es size 380x180 --es finish $fin; sleep 3
   adb exec-out screencap -p > "shot-finish-$fin.png"
 done
-adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget --es finish VETRO; sleep 2
+# Fold Widgets' four corners, at 4x2
+for r in 0 14 24 32; do
+  adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget --es size 380x180 --es finish CARBONIO --es radius $r; sleep 3
+  adb exec-out screencap -p > "shot-corners-$r.png"
+done
+adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget --es finish VETRO --es radius 24; sleep 2
 adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es seed examples; sleep 3
 # Settings, from the name
 adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4; shot settings
@@ -81,6 +86,17 @@ adb shell dumpsys notification --noredact > notes.txt
 grep -q "Test knot from the emulator" notes.txt && note "Reminder arrived as a notification" || note "::error::the reminder did not arrive"
 adb shell cmd statusbar collapse
 adb shell wm size reset; adb shell wm density reset
+
+# Following Fold Widgets' look: install its latest release beside Nodo, and see Nodo's settings read it
+if curl -sfL -o fw.apk https://github.com/cerniera-studio/fold-widgets/releases/latest/download/FoldWidgets.apk && adb install -r fw.apk >/dev/null 2>&1; then
+  adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4
+  adb shell input swipe 540 1700 540 900 300; sleep 1; shot follow
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb shell cat /sdcard/ui.xml > ui.xml
+  if grep -q "Follow Fold Widgets" ui.xml; then
+    note "Follows Fold Widgets: $(grep -o 'Its finish, corners and glass images[^"]*' ui.xml | head -1)"
+  else note "::notice::This Fold Widgets release shares no look yet (it arrives with its PR), so Nodo keeps its own"; fi
+  adb shell pm uninstall com.fergusonconsultancy.foldwidgets >/dev/null 2>&1
+fi
 
 adb logcat -d > app-log.txt
 if crashed; then echo "::error::Nodo crashed"; grep -A20 "FATAL EXCEPTION" app-log.txt | head -40; exit 1; fi

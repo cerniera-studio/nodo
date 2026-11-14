@@ -78,12 +78,14 @@ class NodoWidget : AppWidgetProvider() {
             val d = c.resources.displayMetrics.density
             val knots = Store.load(c)
             val now = System.currentTimeMillis()
-            val finish = Store.widgetFinish(c)
+            // Fold Widgets' look when following it, else Nodo's own (this also points the glass at the right images)
+            val look = Look.read(c)
+            val finish = look.finish
             // What lies behind this widget: the slice of wallpaper at its seat, or the wallpaper's colours
             val ground = Backdrop.ground(c, Store.store(c), id)
             val map = LinkedHashMap<SizeF, RemoteViews>()
             for ((index, s) in sizes(m, id).withIndex()) {
-                val pic = Painter.draw(c, s.width, s.height, d, finish, ground, knots, now)
+                val pic = Painter.draw(c, s.width, s.height, d, finish, ground, knots, now, look.radius.toFloat())
                 val rv = RemoteViews(c.packageName, R.layout.widget)
                 rv.setImageViewBitmap(R.id.face, pic.bitmap)
                 rv.setContentDescription(R.id.face, pic.spoken)
@@ -153,7 +155,7 @@ object Painter {
         return if (Words.dayStart(k.due, z) == Words.dayStart(now, z)) "Today " + Words.hm(k.due, z) else Words.whenLine(k, now, z)
     }
 
-    fun draw(c: Context, w: Float, h: Float, density: Float, finish: Finish, ground: Ground, knots: List<Knot>, now: Long): Picture {
+    fun draw(c: Context, w: Float, h: Float, density: Float, finish: Finish, ground: Ground, knots: List<Knot>, now: Long, radius: Float = 24f): Picture {
         // Kept within what a launcher accepts for a widget's picture
         val d = min(density, sqrt(1_600_000f / (w * h)))
         val bmp = Bitmap.createBitmap(max(1, (w * d).toInt()), max(1, (h * d).toInt()), Bitmap.Config.ARGB_8888)
@@ -162,7 +164,7 @@ object Painter {
         val sans6 = Kit.sans(c, 600); val sans5 = Kit.sans(c, 500); val sans4 = Kit.sans(c, 400); val display = Kit.display(c)
         // The finish, painted by the Kit exactly as Fold Widgets paints its own: one ink for the whole
         // widget, proven legible over what lies behind it
-        val surface = Surface(finish, ground, w, h, min(24f, min(w, h) / 2), 1.1f / d)
+        val surface = Surface(finish, ground, w, h, min(radius, min(w, h) / 2), 1.1f / d)
         surface.paint(cv)
         val ink = surface.ink(w / 2, h / 2); val muted = surface.muted(w / 2, h / 2); val faint = a(ink, 0.3f)
         val glowCol = surface.accent(w / 2, h / 2)
