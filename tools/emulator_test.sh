@@ -48,8 +48,17 @@ PY
 
 # Tap a knot: its detail
 adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open next; sleep 4; shot detail
-# The widget, every shape at once, in two finishes
+# The widget at every size it can be given, from a 2x2 on the cover to the whole main screen,
+# with a full thread and with a single knot. Each is drawn at its true size and shown whole.
 adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget; sleep 4; shot widget
+for seed in examples one; do
+  adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es seed $seed; sleep 3
+  for size in cover-2x2:170x170 cover-4x2:380x180 cover-4x4:380x380 cover-tall:180x420 cover-full:390x760 main-4x2:420x200 main-half:400x780 main-wide:820x300 main-full:820x780; do
+    adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget --es size ${size#*:}; sleep 3
+    adb exec-out screencap -p > "shot-widget-$seed-${size%%:*}.png"
+  done
+done
+adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es seed examples; sleep 3
 # Settings, from the name
 adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4; shot settings
 adb shell input swipe 540 1700 540 500 300; sleep 1; shot settings-lower

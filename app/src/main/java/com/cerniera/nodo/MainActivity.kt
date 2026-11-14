@@ -72,7 +72,11 @@ class MainActivity : Activity(), ThreadView.Listener {
         window.statusBarColor = 0; window.navigationBarColor = 0
         feel = Feel.get(this)
 
-        if (intent?.getStringExtra("seed") == "examples") Store.save(this, Store.examples())
+        when (intent?.getStringExtra("seed")) {
+            "examples" -> Store.save(this, Store.examples())
+            // Mechack's own case on the Fold: one knot on the thread
+            "one" -> Store.save(this, mutableListOf(Knot(1, "Run bath", System.currentTimeMillis() + 50 * MIN)))
+        }
         knots = Store.load(this)
 
         root = FrameLayout(this).apply { setBackgroundColor(Kit.Fixed.VISCONTI_GROUND) }
@@ -403,23 +407,24 @@ class MainActivity : Activity(), ThreadView.Listener {
         }
     }
 
-    /** Every shape of the widget at once, in the current finish (for the emulator's photographs). */
+    /**
+     * The widget at one size, drawn at its true size in dp and shown whole (for the emulator's
+     * photographs): --es size 820x780. Without a size, the four everyday sizes at once.
+     */
     private fun widgetSheet() {
         val d = resources.displayMetrics.density
         val now = System.currentTimeMillis()
-        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(px(16), insets[1] + px(16), px(16), px(16)) }
-        val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
-        listOf(150f to 150f, 160f to 340f).forEach { (w, h) ->
-            row1.addView(android.widget.ImageView(this).apply { setImageBitmap(Painter.draw(this@MainActivity, w, h, d, Store.widgetFinish(this@MainActivity), knots, now).bitmap) },
-                LinearLayout.LayoutParams(px(w.toInt()), px(h.toInt())).apply { marginEnd = px(12) })
+        val wanted = intent?.getStringExtra("size")?.split("x")?.mapNotNull { it.toFloatOrNull() }?.takeIf { it.size == 2 }
+        val sizes = if (wanted != null) listOf(wanted[0] to wanted[1]) else listOf(150f to 150f, 160f to 340f, 370f to 170f, 520f to 220f)
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(px(12), insets[1] + px(12), px(12), px(12)); gravity = Gravity.CENTER }
+        sizes.forEach { (w, h) ->
+            col.addView(text("${w.toInt()} × ${h.toInt()} dp", 12f, Kit.MUTED, 500))
+            col.addView(android.widget.ImageView(this).apply {
+                setImageBitmap(Painter.draw(this@MainActivity, w, h, d, Store.widgetFinish(this@MainActivity), knots, now).bitmap)
+                adjustViewBounds = true; scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(-1, if (wanted != null) -1 else px(h.toInt())).apply { topMargin = px(6); bottomMargin = px(12) })
         }
-        col.addView(row1)
-        listOf(370f to 170f, 520f to 220f).forEach { (w, h) ->
-            col.addView(android.widget.ImageView(this).apply { setImageBitmap(Painter.draw(this@MainActivity, w, h, d, Store.widgetFinish(this@MainActivity), knots, now).bitmap) },
-                LinearLayout.LayoutParams(px(w.toInt()), px(h.toInt())).apply { topMargin = px(12) })
-        }
-        val sv = HorizontalScrollView(this).apply { addView(ScrollView(this@MainActivity).apply { addView(col) }) }
-        root.addView(FrameLayout(this).apply { setBackgroundColor(0xFF3A4A44.toInt()); addView(sv); isClickable = true }, FrameLayout.LayoutParams(-1, -1))
+        root.addView(FrameLayout(this).apply { setBackgroundColor(0xFF3A4A44.toInt()); addView(ScrollView(this@MainActivity).apply { isFillViewport = true; addView(col) }); isClickable = true }, FrameLayout.LayoutParams(-1, -1))
     }
 
     private fun notificationsOn() = getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true
