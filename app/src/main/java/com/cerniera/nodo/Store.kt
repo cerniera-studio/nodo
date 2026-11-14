@@ -12,6 +12,8 @@ import java.time.ZoneId
  */
 object Store {
     private fun prefs(c: Context) = c.getSharedPreferences("nodo", Context.MODE_PRIVATE)
+    /** Nodo's preferences, where the Kit's Backdrop also keeps each widget's seat. */
+    fun store(c: Context) = prefs(c)
 
     fun load(c: Context): MutableList<Knot> = runCatching {
         val a = JSONArray(prefs(c).getString("knots", "[]"))
@@ -53,8 +55,9 @@ object Store {
     fun haptics(c: Context) = prefs(c).getBoolean("haptics", true)
     fun setSound(c: Context, v: Boolean) = prefs(c).edit().putBoolean("sound", v).apply()
     fun setHaptics(c: Context, v: Boolean) = prefs(c).edit().putBoolean("haptics", v).apply()
-    fun widgetFinish(c: Context) = runCatching { WidgetFinish.valueOf(prefs(c).getString("widgetFinish", WidgetFinish.CARBONIO.name)!!) }.getOrDefault(WidgetFinish.CARBONIO)
-    fun setWidgetFinish(c: Context, f: WidgetFinish) { prefs(c).edit().putString("widgetFinish", f.name).apply(); NodoWidget.refresh(c) }
+    /** The widget's finish: Fold Widgets' ten, from the Kit. Vetro, as in Fold Widgets, until one is chosen. */
+    fun widgetFinish(c: Context): com.cerniera.kit.Finish = runCatching { com.cerniera.kit.Finish.valueOf(prefs(c).getString("widgetFinish", null)!!) }.getOrDefault(com.cerniera.kit.Finish.VETRO)
+    fun setWidgetFinish(c: Context, f: com.cerniera.kit.Finish) { prefs(c).edit().putString("widgetFinish", f.name).apply(); NodoWidget.refresh(c) }
     fun seenHint(c: Context) = prefs(c).getBoolean("hint", false)
     fun setSeenHint(c: Context) = prefs(c).edit().putBoolean("hint", true).apply()
 

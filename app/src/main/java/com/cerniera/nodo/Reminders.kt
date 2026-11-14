@@ -98,6 +98,8 @@ class ReminderReceiver : BroadcastReceiver() {
 /** Done and Later, from the notification, without opening Nodo. */
 class ActionReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, i: Intent) {
+        // A tap on the widget's Done also tells the widget where it sits
+        NodoWidget.seatFrom(c, i)
         val id = i.getIntExtra("id", -1)
         val knots = Store.load(c)
         val k = knots.firstOrNull { it.id == id } ?: return

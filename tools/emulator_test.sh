@@ -58,6 +58,12 @@ for seed in examples one; do
     adb exec-out screencap -p > "shot-widget-$seed-${size%%:*}.png"
   done
 done
+# Every finish (Fold Widgets' ten, from the Kit) at 4x2 on the cover, over the banded ground
+for fin in VETRO CRISTALLO SMOKE MEMBRANE ROSSO AVORIO CARBONIO CERAMICA VISCONTI PAPER; do
+  adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget --es size 380x180 --es finish $fin; sleep 3
+  adb exec-out screencap -p > "shot-finish-$fin.png"
+done
+adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget --es finish VETRO; sleep 2
 adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es seed examples; sleep 3
 # Settings, from the name
 adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4; shot settings
