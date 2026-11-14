@@ -89,12 +89,14 @@ adb shell wm size reset; adb shell wm density reset
 
 # Following Fold Widgets' look: install its latest release beside Nodo, and see Nodo's settings read it
 if curl -sfL -o fw.apk https://github.com/cerniera-studio/fold-widgets/releases/latest/download/FoldWidgets.apk && adb install -r fw.apk >/dev/null 2>&1; then
+  adb logcat -c
   adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4
-  adb shell input swipe 540 1700 540 900 300; sleep 1; shot follow
-  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb shell cat /sdcard/ui.xml > ui.xml
-  if grep -q "Follow Fold Widgets" ui.xml; then
-    note "Follows Fold Widgets: $(grep -o 'Its finish, corners and glass images[^"]*' ui.xml | head -1)"
-  else note "::notice::This Fold Widgets release shares no look yet (it arrives with its PR), so Nodo keeps its own"; fi
+  adb shell input swipe 540 1700 540 300 300; sleep 1; shot follow
+  line=$(adb logcat -d -s Nodo:I | grep "look:" | tail -1)
+  case "$line" in
+    *"from Fold Widgets"*) note "Follows Fold Widgets: ${line#*look: }" ;;
+    *) note "::error::Nodo did not follow Fold Widgets' look (${line#*look: })" ;;
+  esac
   adb shell pm uninstall com.fergusonconsultancy.foldwidgets >/dev/null 2>&1
 fi
 

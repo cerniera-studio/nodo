@@ -62,7 +62,11 @@ object Look {
         p(c).edit().apply {
             images.forEach { (screen, uri) -> if (uri == null) remove("image_$screen") else putString("image_$screen", uri) }
         }.apply()
-        return now ?: Now(Store.widgetFinish(c), radius(c), false)
+        val look = now ?: Now(Store.widgetFinish(c), radius(c), false)
+        android.util.Log.i("Nodo", "look: ${look.finish.name} radius ${look.radius} " +
+            (if (look.fromFoldWidgets) "from Fold Widgets" else if (foldWidgets(c)) "own (following off)" else "own (no Fold Widgets)") +
+            ", glass images: " + images.filterValues { it != null }.keys.ifEmpty { listOf("none") }.joinToString())
+        return look
     }
 }
 
