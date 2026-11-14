@@ -195,7 +195,9 @@ object Painter {
             todayCount > 0 && !small -> "$todayCount today"
             else -> ""
         }
-        if (summary.isNotEmpty()) text(summary, w - pad, headY, 12.5f * k, if (late.isNotEmpty()) f.late else muted, sans5, Paint.Align.RIGHT)
+        // Narrow and not tall: Done takes the top corner, so the knot's words get the whole width
+        val compact = !tall && w < 200f
+        if (summary.isNotEmpty() && !compact) text(summary, w - pad, headY, 12.5f * k, if (late.isNotEmpty()) f.late else muted, sans5, Paint.Align.RIGHT)
 
         var doneRect: RectF? = null
         fun pillWidth(): Float { p.typeface = sans6; p.textSize = 13f * k; return p.measureText("Done") + 26f * k }
@@ -383,8 +385,8 @@ object Painter {
             // How much room the words have: labels above the thread in tiers when the widget is tall enough
             val tierH = 40f * k
             val tiers = when { small -> 0; h >= 330f * k -> 2; h >= 230f * k -> 1; else -> 0 }
-            val textW = w - 2 * pad - pillWidth() - 12f * k
-            val focusLines = fit(focus.text, 14.5f * k, sans6, textW, if (h >= 200f * k) 2 else 1)
+            val textW = if (compact) w - 2 * pad else w - 2 * pad - pillWidth() - 12f * k
+            val focusLines = fit(focus.text, 14.5f * k, sans6, textW, if (h >= 200f * k || compact) 2 else 1)
             val focusH = 26f * k + focusLines.size * 17.5f * k + 18f * k
             val thenRoom = tiers == 0 && !small
             val blockTop = (if (tiers > 0) tiers * tierH + 6f * k else 0f) + 22f * k   // above the thread: labels, then NOW
@@ -425,9 +427,9 @@ object Painter {
             }
 
             // The knot in focus: its words, when, and Done
-            val pill = donePill(w - pad, ty + (if (small) 30f else 40f) * k)
+            val pill = if (compact) donePill(w - pad, headY - 4f * k) else donePill(w - pad, ty + (if (small) 30f else 40f) * k)
             doneRect = pill
-            var y = pill.top + 4f * k + 11f * k
+            var y = if (compact) ty + 30f * k else pill.top + 4f * k + 11f * k
             focusLines.forEach { l -> text(l, pad, y, 14.5f * k, ink, sans6); y += 17.5f * k }
             // Kept clear of Done: on a small widget the line is shortened rather than run under it
             text(fit(whenLine(focus, now), 12.5f * k, sans5, textW, 1).first(), pad, y + 2f * k, 12.5f * k, if (focus.late(now)) f.late else f.glow, sans5)
