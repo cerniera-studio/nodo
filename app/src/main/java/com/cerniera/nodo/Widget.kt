@@ -430,7 +430,7 @@ object Painter {
             var y = pill.top + 4f * k + 11f * k
             focusLines.forEach { l -> text(l, pad, y, 14.5f * k, ink, sans6); y += 17.5f * k }
             // Kept clear of Done: on a small widget the line is shortened rather than run under it
-            text(fit(whenLine(focus, now), 12.5f * k, sans5, textW + (if (small) 0f else 60f * k), 1).first(), pad, y + 2f * k, 12.5f * k, if (focus.late(now)) f.late else f.glow, sans5)
+            text(fit(whenLine(focus, now), 12.5f * k, sans5, textW, 1).first(), pad, y + 2f * k, 12.5f * k, if (focus.late(now)) f.late else f.glow, sans5)
             y += 18f * k
             if (thenRoom) {
                 val then = (late.drop(1) + ahead).firstOrNull { it !== focus }
