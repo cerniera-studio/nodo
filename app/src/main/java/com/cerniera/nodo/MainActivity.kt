@@ -72,7 +72,11 @@ class MainActivity : Activity(), ThreadView.Listener {
         window.statusBarColor = 0; window.navigationBarColor = 0
         feel = Feel.get(this)
 
-        if (intent?.getStringExtra("seed") == "examples") Store.save(this, Store.examples())
+        when (intent?.getStringExtra("seed")) {
+            "examples" -> Store.save(this, Store.examples())
+            // Mechack's own case on the Fold: one knot on the thread
+            "one" -> Store.save(this, mutableListOf(Knot(1, "Run bath", System.currentTimeMillis() + 50 * MIN)))
+        }
         knots = Store.load(this)
 
         root = FrameLayout(this).apply { setBackgroundColor(Kit.Fixed.VISCONTI_GROUND) }
@@ -104,7 +108,7 @@ class MainActivity : Activity(), ThreadView.Listener {
         handle(intent)
     }
 
-    override fun onNewIntent(i: Intent) { super.onNewIntent(i); handle(i) }
+    override fun onNewIntent(i: Intent) { super.onNewIntent(i); if (::thread.isInitialized) handle(i) }
 
     /** From a notification (a knot's id), or the emulator's walk-through (open, add). */
     private fun handle(i: Intent?) {
@@ -115,6 +119,7 @@ class MainActivity : Activity(), ThreadView.Listener {
             when {
                 id >= 0 -> knots.firstOrNull { it.id == id }?.let { tapped(it) }
                 i.getStringExtra("open") == "settings" -> settings()
+                i.getStringExtra("open") == "widget" -> widgetSheet()
                 i.getStringExtra("open") == "next" -> knots.filter { it.done == null }.minByOrNull { it.due }?.let { tapped(it) }
             }
         }
@@ -122,6 +127,8 @@ class MainActivity : Activity(), ThreadView.Listener {
 
     override fun onResume() {
         super.onResume()
+        // After a crash Nodo opens on the report alone (Crash.show): nothing else exists yet
+        if (!::thread.isInitialized) return
         // Done or Later may have been pressed on a notification while Nodo was away
         if (tieField == null) { knots = Store.load(this); thread.knots = knots; open?.let { id -> knots.firstOrNull { it.id == id }?.let { showDetail(it) } ?: closeDetail() } }
         Reminders.arm(this, knots)
@@ -131,6 +138,8 @@ class MainActivity : Activity(), ThreadView.Listener {
 
     override fun onConfigurationChanged(c: Configuration) {
         super.onConfigurationChanged(c)
+        // After a crash Nodo opens on the report alone (Crash.show): nothing else exists yet
+        if (!::thread.isInitialized) return
         // Folding or turning: the thread lays itself out again, and the detail follows it
         root.post {
             when {
@@ -144,6 +153,7 @@ class MainActivity : Activity(), ThreadView.Listener {
     @Deprecated("Back closes what came forward")
     override fun onBackPressed() {
         when {
+            !::thread.isInitialized -> @Suppress("DEPRECATION") super.onBackPressed()
             tieField != null -> endTie()
             open != null && panelTransient -> closeDetail()
             else -> @Suppress("DEPRECATION") super.onBackPressed()
@@ -354,6 +364,8 @@ class MainActivity : Activity(), ThreadView.Listener {
                     startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
                 })
             })
+            s.body.addView(label("On the home screen"))
+            widgetCard(s.body)
             s.body.addView(label("How it works"))
             listOf(
                 "Pull the loose end" to "A knot forms under your finger. Type what to remember; a time in the words (\"Friday 9\", \"in 20 min\", \"tomorrow at 3pm\") moves it there.",
@@ -370,6 +382,49 @@ class MainActivity : Activity(), ThreadView.Listener {
                 "Giulietta" to "No add button: the loose end ties a knot, the crease marks it done, and the detail comes forward only when a knot is tapped.",
             )), LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(26) })
         }
+    }
+
+    // ---- The widget ------------------------------------------------------------------------
+
+    /** A live picture of the widget, its finish, and a way to put it on the home screen. */
+    private fun widgetCard(into: LinearLayout) {
+        val ctx = this
+        val d = resources.displayMetrics.density
+        val pic = android.widget.ImageView(ctx).apply { adjustViewBounds = true; scaleType = android.widget.ImageView.ScaleType.FIT_START }
+        fun draw() { pic.setImageBitmap(Painter.draw(ctx, 300f, 150f, d, Store.widgetFinish(ctx), knots, System.currentTimeMillis()).bitmap) }
+        draw()
+        into.addView(text("The thread, as a widget: overdue knots against now, and the next one with Done. It never shows calendar events; the Agenda widget keeps those.", 13.5f, Kit.MUTED, 400),
+            LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(12) })
+        into.addView(pic, LinearLayout.LayoutParams(px(300), px(150)).apply { bottomMargin = px(12) })
+        into.addView(Segmented(ctx, WidgetFinish.values().map { it.label }, Store.widgetFinish(ctx).ordinal) { i -> Store.setWidgetFinish(ctx, WidgetFinish.values()[i]); draw() })
+        val wm = getSystemService(android.appwidget.AppWidgetManager::class.java)
+        if (wm?.isRequestPinAppWidgetSupported == true) {
+            into.addView(Card(ctx).apply {
+                row(Row(ctx, "Add to home screen", "Your launcher asks where to put it.", endValue("Add", Kit.CHAMPAGNE)) {
+                    wm.requestPinAppWidget(android.content.ComponentName(ctx, NodoWidget::class.java), null, null)
+                })
+            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(12) })
+        }
+    }
+
+    /**
+     * The widget at one size, drawn at its true size in dp and shown whole (for the emulator's
+     * photographs): --es size 820x780. Without a size, the four everyday sizes at once.
+     */
+    private fun widgetSheet() {
+        val d = resources.displayMetrics.density
+        val now = System.currentTimeMillis()
+        val wanted = intent?.getStringExtra("size")?.split("x")?.mapNotNull { it.toFloatOrNull() }?.takeIf { it.size == 2 }
+        val sizes = if (wanted != null) listOf(wanted[0] to wanted[1]) else listOf(150f to 150f, 160f to 340f, 370f to 170f, 520f to 220f)
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(px(12), insets[1] + px(12), px(12), px(12)); gravity = Gravity.CENTER }
+        sizes.forEach { (w, h) ->
+            col.addView(text("${w.toInt()} × ${h.toInt()} dp", 12f, Kit.MUTED, 500))
+            col.addView(android.widget.ImageView(this).apply {
+                setImageBitmap(Painter.draw(this@MainActivity, w, h, d, Store.widgetFinish(this@MainActivity), knots, now).bitmap)
+                adjustViewBounds = true; scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
+            }, LinearLayout.LayoutParams(-1, if (wanted != null) -1 else px(h.toInt())).apply { topMargin = px(6); bottomMargin = px(12) })
+        }
+        root.addView(FrameLayout(this).apply { setBackgroundColor(0xFF3A4A44.toInt()); addView(ScrollView(this@MainActivity).apply { isFillViewport = true; addView(col) }); isClickable = true }, FrameLayout.LayoutParams(-1, -1))
     }
 
     private fun notificationsOn() = getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true

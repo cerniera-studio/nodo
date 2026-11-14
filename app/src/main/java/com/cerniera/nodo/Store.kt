@@ -32,6 +32,7 @@ object Store {
         }
         prefs(c).edit().putString("knots", a.toString()).apply()
         Reminders.arm(c, knots)
+        NodoWidget.refresh(c)
     }
 
     fun newId(knots: List<Knot>) = (knots.maxOfOrNull { it.id } ?: 0) + 1
@@ -52,6 +53,8 @@ object Store {
     fun haptics(c: Context) = prefs(c).getBoolean("haptics", true)
     fun setSound(c: Context, v: Boolean) = prefs(c).edit().putBoolean("sound", v).apply()
     fun setHaptics(c: Context, v: Boolean) = prefs(c).edit().putBoolean("haptics", v).apply()
+    fun widgetFinish(c: Context) = runCatching { WidgetFinish.valueOf(prefs(c).getString("widgetFinish", WidgetFinish.CARBONIO.name)!!) }.getOrDefault(WidgetFinish.CARBONIO)
+    fun setWidgetFinish(c: Context, f: WidgetFinish) { prefs(c).edit().putString("widgetFinish", f.name).apply(); NodoWidget.refresh(c) }
     fun seenHint(c: Context) = prefs(c).getBoolean("hint", false)
     fun setSeenHint(c: Context) = prefs(c).edit().putBoolean("hint", true).apply()
 
