@@ -104,7 +104,9 @@ class ThreadView(ctx: Context, private val feel: Feel, private val listener: Lis
     init {
         setOnApplyWindowInsetsListener { _, i ->
             val b = i.getInsets(WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout())
-            ins.set(b.left / d, b.top / d, b.right / d, b.bottom / d); relayout(); i
+            // The loose end is pulled with a swipe: keep it clear of the swipe that goes home
+            val gest = i.getInsets(WindowInsets.Type.systemGestures())
+            ins.set(b.left / d, b.top / d, b.right / d, max(b.bottom, gest.bottom) / d); relayout(); i
         }
         isFocusable = true
     }

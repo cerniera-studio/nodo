@@ -20,7 +20,8 @@ adb shell am force-stop $PKG
 adb shell am start -n $PKG/.MainActivity --es seed examples; sleep 5; shot home
 bash tools/shapes.sh
 
-# Back on the cover, upright: find the loose end, the next knot and now from the recorded layout
+# Back on the cover, upright, at the Fold's size: find the loose end, the next knot and now from the recorded layout
+adb shell wm density 320; adb shell wm size 823x1920; sleep 3
 adb shell am force-stop $PKG; adb shell run-as $PKG rm -f files/layout.json
 adb shell am start -n $PKG/.MainActivity; sleep 5
 pos() { adb shell run-as $PKG cat files/layout.json | python3 -c "import sys,json;b=json.load(sys.stdin)['parts']['$1'];print((b[0]+b[2])//2,(b[1]+b[3])//2)"; }
@@ -53,13 +54,15 @@ adb shell input swipe 540 1700 540 500 300; sleep 1; shot settings-lower
 adb shell am force-stop $PKG
 
 # A real reminder: a knot due in a minute arrives as a notification with Done and Later
+# (Home, not force-stop: Android cancels a force-stopped app's alarms)
 adb shell am start -n $PKG/.MainActivity --es add "in 1 min test knot from the emulator"; sleep 3
-adb shell am force-stop $PKG
+adb shell input keyevent KEYCODE_HOME
 sleep 75
 adb shell cmd statusbar expand-notifications; sleep 2; shot notification
 adb shell dumpsys notification --noredact > notes.txt
 grep -q "Test knot from the emulator" notes.txt && note "Reminder arrived as a notification" || note "::error::the reminder did not arrive"
 adb shell cmd statusbar collapse
+adb shell wm size reset; adb shell wm density reset
 
 adb logcat -d > app-log.txt
 if crashed; then echo "::error::Nodo crashed"; grep -A20 "FATAL EXCEPTION" app-log.txt | head -40; exit 1; fi

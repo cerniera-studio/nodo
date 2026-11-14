@@ -298,7 +298,7 @@ class MainActivity : Activity(), ThreadView.Listener {
             Store.save(this, knots); thread.kick()
         })
         body.addView(label("Repeat"))
-        body.addView(Segmented(this, listOf("Once", "Daily", "Weekdays", "Weekly"), Knot.REPEATS.indexOf(k.repeat).coerceAtLeast(0)) { i ->
+        body.addView(Segmented(this, listOf("Once", "Daily", "Mon–Fri", "Weekly"), Knot.REPEATS.indexOf(k.repeat).coerceAtLeast(0)) { i ->
             k.repeat = Knot.REPEATS[i]; Store.save(this, knots); thread.kick()
         })
 
