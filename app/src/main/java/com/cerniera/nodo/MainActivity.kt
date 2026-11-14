@@ -115,6 +115,7 @@ class MainActivity : Activity(), ThreadView.Listener {
             when {
                 id >= 0 -> knots.firstOrNull { it.id == id }?.let { tapped(it) }
                 i.getStringExtra("open") == "settings" -> settings()
+                i.getStringExtra("open") == "widget" -> widgetSheet()
                 i.getStringExtra("open") == "next" -> knots.filter { it.done == null }.minByOrNull { it.due }?.let { tapped(it) }
             }
         }
@@ -354,6 +355,8 @@ class MainActivity : Activity(), ThreadView.Listener {
                     startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
                 })
             })
+            s.body.addView(label("On the home screen"))
+            widgetCard(s.body)
             s.body.addView(label("How it works"))
             listOf(
                 "Pull the loose end" to "A knot forms under your finger. Type what to remember; a time in the words (\"Friday 9\", \"in 20 min\", \"tomorrow at 3pm\") moves it there.",
@@ -370,6 +373,48 @@ class MainActivity : Activity(), ThreadView.Listener {
                 "Giulietta" to "No add button: the loose end ties a knot, the crease marks it done, and the detail comes forward only when a knot is tapped.",
             )), LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(26) })
         }
+    }
+
+    // ---- The widget ------------------------------------------------------------------------
+
+    /** A live picture of the widget, its finish, and a way to put it on the home screen. */
+    private fun widgetCard(into: LinearLayout) {
+        val ctx = this
+        val d = resources.displayMetrics.density
+        val pic = android.widget.ImageView(ctx).apply { adjustViewBounds = true; scaleType = android.widget.ImageView.ScaleType.FIT_START }
+        fun draw() { pic.setImageBitmap(Painter.draw(ctx, 300f, 150f, d, Store.widgetFinish(ctx), knots, System.currentTimeMillis()).bitmap) }
+        draw()
+        into.addView(text("The thread, as a widget: overdue knots against now, and the next one with Done. It never shows calendar events; the Agenda widget keeps those.", 13.5f, Kit.MUTED, 400),
+            LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(12) })
+        into.addView(pic, LinearLayout.LayoutParams(px(300), px(150)).apply { bottomMargin = px(12) })
+        into.addView(Segmented(ctx, WidgetFinish.values().map { it.label }, Store.widgetFinish(ctx).ordinal) { i -> Store.setWidgetFinish(ctx, WidgetFinish.values()[i]); draw() })
+        val wm = getSystemService(android.appwidget.AppWidgetManager::class.java)
+        if (wm?.isRequestPinAppWidgetSupported == true) {
+            into.addView(Card(ctx).apply {
+                row(Row(ctx, "Add to home screen", "Your launcher asks where to put it.", endValue("Add", Kit.CHAMPAGNE)) {
+                    wm.requestPinAppWidget(android.content.ComponentName(ctx, NodoWidget::class.java), null, null)
+                })
+            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(12) })
+        }
+    }
+
+    /** Every shape of the widget at once, in the current finish (for the emulator's photographs). */
+    private fun widgetSheet() {
+        val d = resources.displayMetrics.density
+        val now = System.currentTimeMillis()
+        val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(px(16), insets[1] + px(16), px(16), px(16)) }
+        val row1 = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+        listOf(150f to 150f, 160f to 340f).forEach { (w, h) ->
+            row1.addView(android.widget.ImageView(this).apply { setImageBitmap(Painter.draw(this@MainActivity, w, h, d, Store.widgetFinish(this@MainActivity), knots, now).bitmap) },
+                LinearLayout.LayoutParams(px(w.toInt()), px(h.toInt())).apply { marginEnd = px(12) })
+        }
+        col.addView(row1)
+        listOf(370f to 170f, 520f to 220f).forEach { (w, h) ->
+            col.addView(android.widget.ImageView(this).apply { setImageBitmap(Painter.draw(this@MainActivity, w, h, d, Store.widgetFinish(this@MainActivity), knots, now).bitmap) },
+                LinearLayout.LayoutParams(px(w.toInt()), px(h.toInt())).apply { topMargin = px(12) })
+        }
+        val sv = HorizontalScrollView(this).apply { addView(ScrollView(this@MainActivity).apply { addView(col) }) }
+        root.addView(FrameLayout(this).apply { setBackgroundColor(0xFF3A4A44.toInt()); addView(sv); isClickable = true }, FrameLayout.LayoutParams(-1, -1))
     }
 
     private fun notificationsOn() = getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true

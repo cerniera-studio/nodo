@@ -90,6 +90,8 @@ class ReminderReceiver : BroadcastReceiver() {
         val k = Store.load(c).firstOrNull { it.id == id }
         android.util.Log.i("Nodo", "knot $id came due: ${if (k == null) "gone" else if (k.done != null) "already done" else "notifying"}")
         if (k != null && k.done == null) Reminders.notify(c, k)
+        // The knot is now overdue: the widget shows it against now
+        NodoWidget.refresh(c)
     }
 }
 
@@ -115,5 +117,5 @@ class ActionReceiver : BroadcastReceiver() {
 
 /** Alarms don't survive a restart, a clock change or an update: set them again. */
 class BootReceiver : BroadcastReceiver() {
-    override fun onReceive(c: Context, i: Intent) = Reminders.arm(c)
+    override fun onReceive(c: Context, i: Intent) { Reminders.arm(c); NodoWidget.refresh(c) }
 }

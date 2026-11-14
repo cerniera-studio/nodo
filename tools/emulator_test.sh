@@ -48,6 +48,8 @@ PY
 
 # Tap a knot: its detail
 adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open next; sleep 4; shot detail
+# The widget, every shape at once, in two finishes
+adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget; sleep 4; shot widget
 # Settings, from the name
 adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4; shot settings
 adb shell input swipe 540 1700 540 500 300; sleep 1; shot settings-lower
