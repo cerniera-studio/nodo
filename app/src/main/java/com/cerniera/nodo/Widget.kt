@@ -18,7 +18,12 @@ import android.os.Bundle
 import android.util.SizeF
 import android.util.TypedValue
 import android.widget.RemoteViews
+import com.cerniera.kit.Backdrop
+import com.cerniera.kit.Finish
+import com.cerniera.kit.Ground
 import com.cerniera.kit.Kit
+import com.cerniera.kit.Surface
+import com.cerniera.kit.lum
 import java.time.ZoneId
 import kotlin.math.ln
 import kotlin.math.max
@@ -36,8 +41,9 @@ import kotlin.math.sqrt
  * Drawn to Fold Widgets' recipe so the two sit together as one set: one picture per size and
  * orientation, drawn to its exact size at the screen's density; Shapes.squircle corners at
  * radius 24; Jost in Fold Widgets' roles (label 11/600 tracked, primary 14.5/600, meta 12.5/500,
- * one Italiana figure); the solid finishes with Fold Widgets' own values. Its glass finishes
- * (Vetro, Cristallo) read the wallpaper, which another app can't share, so they aren't offered.
+ * one Italiana figure). The finishes are Fold Widgets' own, from the Kit (14 Nov 2026): all ten,
+ * adapting to the wallpaper behind the widget the same way, the glass ones seeing through it when
+ * Nodo may read the wallpaper image. Like Fold Widgets', the widget learns where it sits from taps.
  *
  * Widgets can't animate, be dragged or take long presses: the knot's Done is a tap, everything
  * else opens Nodo at that knot.
@@ -52,6 +58,8 @@ class NodoWidget : AppWidgetProvider() {
         /** Redraws every Nodo widget: after any change to the thread, and when a knot comes due. */
         fun refresh(c: Context) {
             val m = AppWidgetManager.getInstance(c) ?: return
+            // The wallpaper may have changed since it was last read
+            Backdrop.invalidate()
             runCatching { m.getAppWidgetIds(ComponentName(c, NodoWidget::class.java)).forEach { draw(c, m, it) } }
         }
 
@@ -70,14 +78,18 @@ class NodoWidget : AppWidgetProvider() {
             val d = c.resources.displayMetrics.density
             val knots = Store.load(c)
             val now = System.currentTimeMillis()
-            val finish = Store.widgetFinish(c)
+            // Fold Widgets' look when following it, else Nodo's own (this also points the glass at the right images)
+            val look = Look.read(c)
+            val finish = look.finish
+            // What lies behind this widget: the slice of wallpaper at its seat, or the wallpaper's colours
+            val ground = Backdrop.ground(c, Store.store(c), id)
             val map = LinkedHashMap<SizeF, RemoteViews>()
-            for (s in sizes(m, id)) {
-                val pic = Painter.draw(c, s.width, s.height, d, finish, knots, now)
+            for ((index, s) in sizes(m, id).withIndex()) {
+                val pic = Painter.draw(c, s.width, s.height, d, finish, ground, knots, now, look.radius.toFloat())
                 val rv = RemoteViews(c.packageName, R.layout.widget)
                 rv.setImageViewBitmap(R.id.face, pic.bitmap)
                 rv.setContentDescription(R.id.face, pic.spoken)
-                rv.setOnClickPendingIntent(R.id.root, open(c, pic.focus?.id))
+                rv.setOnClickPendingIntent(R.id.root, open(c, pic.focus?.id, id, index, s))
                 val hit = pic.done
                 if (hit != null && pic.focus != null) {
                     rv.setViewVisibility(R.id.done, android.view.View.VISIBLE)
@@ -86,8 +98,11 @@ class NodoWidget : AppWidgetProvider() {
                     rv.setViewLayoutWidth(R.id.done, hit.width() + 12f, TypedValue.COMPLEX_UNIT_DIP)
                     rv.setViewLayoutHeight(R.id.done, hit.height() + 12f, TypedValue.COMPLEX_UNIT_DIP)
                     rv.setContentDescription(R.id.done, "Mark ${pic.focus.text} done")
-                    rv.setOnClickPendingIntent(R.id.done, PendingIntent.getBroadcast(c, 500_000 + pic.focus.id,
-                        Intent(c, ActionReceiver::class.java).setAction(ActionReceiver.DONE).putExtra("id", pic.focus.id),
+                    // The tap carries where Done sits inside the widget, so the widget learns its seat from it
+                    rv.setOnClickPendingIntent(R.id.done, PendingIntent.getBroadcast(c, 500_000 + id * 8 + index,
+                        Intent(c, ActionReceiver::class.java).setAction(ActionReceiver.DONE).putExtra("id", pic.focus.id)
+                            .putExtra(SEAT_WIDGET, id).putExtra(SEAT_HIT, floatArrayOf(hit.left - 6f, hit.top - 6f, hit.right + 6f, hit.bottom + 6f))
+                            .putExtra(SEAT_SIZE, floatArrayOf(s.width, s.height)),
                         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
                 } else rv.setViewVisibility(R.id.done, android.view.View.GONE)
                 map[s] = rv
@@ -97,34 +112,40 @@ class NodoWidget : AppWidgetProvider() {
                 .onFailure { android.util.Log.w("Nodo", "widget $id not drawn", it) }
         }
 
-        private fun open(c: Context, knot: Int?): PendingIntent = PendingIntent.getActivity(c, 600_000 + (knot ?: 0),
-            Intent(c, MainActivity::class.java).apply { knot?.let { putExtra("knot", it) } }.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+        /** Opens Nodo at the knot. A tap on the whole widget gives its exact bounds: its seat. */
+        private fun open(c: Context, knot: Int?, widget: Int, index: Int, size: SizeF): PendingIntent = PendingIntent.getActivity(c, 600_000 + widget * 8 + index,
+            Intent(c, MainActivity::class.java).apply { knot?.let { putExtra("knot", it) } }
+                .putExtra(SEAT_WIDGET, widget).putExtra(SEAT_ROOT, true).putExtra(SEAT_SIZE, floatArrayOf(size.width, size.height))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-    }
-}
 
-/** The finishes, with Fold Widgets' values (Finish.kt there), so a Nodo widget and theirs match. */
-enum class WidgetFinish(val label: String, val fill: Int, val ink: Int, val edge: Int, val glow: Int, val late: Int) {
-    CARBONIO("Carbonio", 0xF216181A.toInt(), 0xFFE9E6DF.toInt(), 0x14FFFFFF, 0xFFD3B27C.toInt(), 0xFFFF6A6F.toInt()),
-    SMOKE("Smoked", 0xDB121614.toInt(), 0xFFE6E8E2.toInt(), 0x14FFFFFF, 0xFFD3B27C.toInt(), 0xFFFF6A6F.toInt()),
-    VISCONTI("Visconti", 0xF01A3F31.toInt(), 0xFFEFE6D3.toInt(), 0x73D3B27C, 0xFFD3B27C.toInt(), 0xFFFF7A7E.toInt()),
-    ROSSO("Rosso", 0xF0861018.toInt(), 0xFFF6F1E6.toInt(), 0x40D9BB86, 0xFFD9BB86.toInt(), 0xFFFFD08A.toInt()),
-    AVORIO("Avorio", 0xF0F3ECDD.toInt(), 0xFF2A211A.toInt(), 0x22000000, 0xFF9E1B22.toInt(), 0xFF9E1B22.toInt());
+        const val SEAT_WIDGET = "nodo.widget"
+        const val SEAT_ROOT = "nodo.seat.root"
+        const val SEAT_HIT = "nodo.seat.hit"
+        const val SEAT_SIZE = "nodo.seat.size"
+
+        /**
+         * Learns where a widget sits from a tap's bounds (as Fold Widgets' do), and redraws it
+         * against what's really behind it when that changed.
+         */
+        fun seatFrom(c: Context, i: Intent?) {
+            i ?: return
+            val id = i.getIntExtra(SEAT_WIDGET, -1); if (id < 0) return
+            val size = i.getFloatArrayExtra(SEAT_SIZE)?.takeIf { it.size == 2 }?.let { SizeF(it[0], it[1]) } ?: return
+            val root = i.getBooleanExtra(SEAT_ROOT, false)
+            val hit = i.getFloatArrayExtra(SEAT_HIT)?.takeIf { it.size == 4 }?.let { RectF(it[0], it[1], it[2], it[3]) }
+            val moved = runCatching { Backdrop.record(c, Store.store(c), i, id, hit, size, root, size) }.getOrDefault(false)
+            if (moved) refresh(c)
+        }
+    }
 }
 
 /** Paints one picture of the widget at a size in dp. */
 object Painter {
-    class Picture(val bitmap: Bitmap, val done: RectF?, val focus: Knot?, val spoken: String)
+    /** The tones a picture's marks take, read from its finish over its ground. */
+    private class Tones(val ink: Int, val glow: Int, val late: Int)
 
-    private fun squircle(r: RectF, radius: Float): Path {
-        val s = (radius * 1.3f).coerceAtMost(min(r.width(), r.height()) / 2f); val k = 0.26f * s
-        return Path().apply {
-            moveTo(r.left + s, r.top); lineTo(r.right - s, r.top); cubicTo(r.right - k, r.top, r.right, r.top + k, r.right, r.top + s)
-            lineTo(r.right, r.bottom - s); cubicTo(r.right, r.bottom - k, r.right - k, r.bottom, r.right - s, r.bottom)
-            lineTo(r.left + s, r.bottom); cubicTo(r.left + k, r.bottom, r.left, r.bottom - k, r.left, r.bottom - s)
-            lineTo(r.left, r.top + s); cubicTo(r.left, r.top + k, r.left + k, r.top, r.left + s, r.top); close()
-        }
-    }
+    class Picture(val bitmap: Bitmap, val done: RectF?, val focus: Knot?, val spoken: String)
 
     private fun a(col: Int, alpha: Float) = (col and 0x00FFFFFF) or ((alpha.coerceIn(0f, 1f) * ((col ushr 24) and 255)).toInt() shl 24)
 
@@ -134,20 +155,24 @@ object Painter {
         return if (Words.dayStart(k.due, z) == Words.dayStart(now, z)) "Today " + Words.hm(k.due, z) else Words.whenLine(k, now, z)
     }
 
-    fun draw(c: Context, w: Float, h: Float, density: Float, f: WidgetFinish, knots: List<Knot>, now: Long): Picture {
+    fun draw(c: Context, w: Float, h: Float, density: Float, finish: Finish, ground: Ground, knots: List<Knot>, now: Long, radius: Float = 24f): Picture {
         // Kept within what a launcher accepts for a widget's picture
         val d = min(density, sqrt(1_600_000f / (w * h)))
         val bmp = Bitmap.createBitmap(max(1, (w * d).toInt()), max(1, (h * d).toInt()), Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp); cv.scale(d, d)
         val p = Paint(Paint.ANTI_ALIAS_FLAG); val st = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
         val sans6 = Kit.sans(c, 600); val sans5 = Kit.sans(c, 500); val sans4 = Kit.sans(c, 400); val display = Kit.display(c)
-        val ink = f.ink; val muted = a(ink, 0.62f); val faint = a(ink, 0.3f)
-
-        val shape = squircle(RectF(0f, 0f, w, h), min(24f, min(w, h) / 2))
-        cv.save(); cv.clipPath(shape)
-        p.color = f.fill; cv.drawRect(0f, 0f, w, h, p)
-        cv.restore()
-        st.color = f.edge; st.strokeWidth = 1.1f / d; cv.drawPath(shape, st)
+        // The finish, painted by the Kit exactly as Fold Widgets paints its own: one ink for the whole
+        // widget, proven legible over what lies behind it
+        val surface = Surface(finish, ground, w, h, min(radius, min(w, h) / 2), 1.1f / d)
+        surface.paint(cv)
+        val ink = surface.ink(w / 2, h / 2); val muted = surface.muted(w / 2, h / 2); val faint = a(ink, 0.3f)
+        val glowCol = surface.accent(w / 2, h / 2)
+        val lightGlass = surface.darkInk(w / 2, h / 2)
+        // Overdue: rosso, kept legible on every finish (pale on Rosso lacquer, deep on light glass)
+        val lateCol = when { finish == Finish.ROSSO -> 0xFFFFD08A.toInt(); lightGlass -> 0xFF9E1B22.toInt(); else -> 0xFFFF6A6F.toInt() }
+        val onGlow = if (lum(glowCol) > 0.5f) 0xFF15191A.toInt() else 0xFFF6F1E6.toInt()
+        val f = Tones(ink, glowCol, lateCol)
 
         fun text(s: String, x: Float, y: Float, size: Float, col: Int, face: android.graphics.Typeface, align: Paint.Align = Paint.Align.LEFT, track: Float = 0f) {
             p.shader = null; p.typeface = face; p.textSize = size; p.color = col; p.textAlign = align; p.letterSpacing = track; cv.drawText(s, x, y, p); p.letterSpacing = 0f
@@ -169,7 +194,7 @@ object Painter {
                 path.cubicTo(cx + r * 1.1f, r * 0.25f, cx + r * 0.9f, r, cx, r); path.cubicTo(cx - r * 0.9f, r, cx - r * 1.1f, r * 0.25f, cx - r * 2.1f, 0f); path.close()
                 p.color = body; cv.drawPath(path, p)
                 val cross = Path(); cross.moveTo(cx - r * 0.55f, r * 0.72f); cross.quadTo(cx, -r * 0.1f, cx + r * 0.55f, -r * 0.72f)
-                st.strokeWidth = 1f; st.color = a(f.fill or 0xFF000000.toInt(), 0.55f); cv.drawPath(cross, st)
+                st.strokeWidth = 1f; st.color = a(if (lum(body) > 0.5f) 0xFF0E1311.toInt() else 0xFFF6F1E6.toInt(), 0.55f); cv.drawPath(cross, st)
             }
             if (double) { bump(-r * 0.95f); bump(r * 0.95f) } else bump(0f)
             cv.restore()
@@ -205,7 +230,7 @@ object Painter {
             val pw = pillWidth(); val ph = 30f * k
             val r = RectF(right - pw, centreY - ph / 2, right, centreY + ph / 2)
             p.color = f.glow; cv.drawRoundRect(r, ph / 2, ph / 2, p)
-            text("Done", r.centerX(), r.centerY() + 4.6f * k, 13f * k, f.fill or 0xFF000000.toInt(), sans6, Paint.Align.CENTER)
+            text("Done", r.centerX(), r.centerY() + 4.6f * k, 13f * k, onGlow, sans6, Paint.Align.CENTER)
             return r
         }
         fun fray(x: Float, y: Float, vertical: Boolean) {
@@ -252,7 +277,7 @@ object Painter {
             fun pill(right: Float, cy: Float): RectF {
                 val rr = RectF(right - pillW, cy - pillH / 2, right, cy + pillH / 2)
                 p.color = f.glow; cv.drawRoundRect(rr, pillH / 2, pillH / 2, p)
-                text("Done", rr.centerX(), rr.centerY() + 4.6f * pillScale, 13f * pillScale, f.fill or 0xFF000000.toInt(), sans6, Paint.Align.CENTER)
+                text("Done", rr.centerX(), rr.centerY() + 4.6f * pillScale, 13f * pillScale, onGlow, sans6, Paint.Align.CENTER)
                 return rr
             }
             // Words: beside the figure when there's width, otherwise under it

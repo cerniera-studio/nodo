@@ -1,11 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Knots on their minute: granted once from Settings (Alarms & reminders). Without it, Android delivers them a little late -->
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- The widget's glass finishes (Vetro, Cristallo), as in Fold Widgets: since Android 13 the
+         wallpaper image is only readable with all-files access. Asked for in settings, never assumed -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+
+    <!-- Fold Widgets' look (finish, corners, glass images), which the widget follows -->
+    <queries>
+        <provider android:authorities="com.fergusonconsultancy.foldwidgets.look" />
+    </queries>
 
     <application
         android:name=".NodoApp"
@@ -37,6 +47,13 @@
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
             <meta-data android:name="android.appwidget.provider" android:resource="@xml/nodo_widget" />
+        </receiver>
+
+        <!-- Fold Widgets tells Nodo when its look, or the wallpaper, changed -->
+        <receiver android:name=".LookReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="com.cerniera.LOOK_CHANGED" />
+            </intent-filter>
         </receiver>
 
         <receiver android:name=".BootReceiver" android:exported="true">

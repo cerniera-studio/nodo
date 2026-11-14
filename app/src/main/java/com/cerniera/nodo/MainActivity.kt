@@ -66,6 +66,8 @@ class MainActivity : Activity(), ThreadView.Listener {
     override fun onCreate(saved: Bundle?) {
         super.onCreate(saved)
         if (Crash.show(this, "Nodo")) return
+        // Opened from the widget: it learns where it sits from the tap
+        NodoWidget.seatFrom(this, intent)
         // Visconti, always: the thread is drawn for the dark
         Kit.dark = true
         window.setDecorFitsSystemWindows(false)
@@ -108,7 +110,7 @@ class MainActivity : Activity(), ThreadView.Listener {
         handle(intent)
     }
 
-    override fun onNewIntent(i: Intent) { super.onNewIntent(i); if (::thread.isInitialized) handle(i) }
+    override fun onNewIntent(i: Intent) { super.onNewIntent(i); NodoWidget.seatFrom(this, i); if (::thread.isInitialized) handle(i) }
 
     /** From a notification (a knot's id), or the emulator's walk-through (open, add). */
     private fun handle(i: Intent?) {
@@ -386,25 +388,97 @@ class MainActivity : Activity(), ThreadView.Listener {
 
     // ---- The widget ------------------------------------------------------------------------
 
-    /** A live picture of the widget, its finish, and a way to put it on the home screen. */
+    /**
+     * The widget: a live picture of it over a banded ground, then its look. With Fold Widgets
+     * installed it follows Fold Widgets' look by default (finish, corners, glass images); otherwise,
+     * or with following off, Nodo's own choices of the same: ten finishes, four corners, an image for
+     * each screen's glass. Then the wallpaper permission and Add to home screen.
+     */
     private fun widgetCard(into: LinearLayout) {
         val ctx = this
         val d = resources.displayMetrics.density
-        val pic = android.widget.ImageView(ctx).apply { adjustViewBounds = true; scaleType = android.widget.ImageView.ScaleType.FIT_START }
-        fun draw() { pic.setImageBitmap(Painter.draw(ctx, 300f, 150f, d, Store.widgetFinish(ctx), knots, System.currentTimeMillis()).bitmap) }
+        val pic = android.widget.ImageView(ctx).apply { scaleType = android.widget.ImageView.ScaleType.FIT_XY }
+        val bands = Finishes.stripes()
+        fun draw() {
+            val look = Look.read(ctx)
+            val w = 300f; val h = 150f
+            val out = android.graphics.Bitmap.createBitmap((w * d).toInt(), (h * d).toInt(), android.graphics.Bitmap.Config.ARGB_8888)
+            val cv = android.graphics.Canvas(out)
+            cv.drawBitmap(bands, null, android.graphics.RectF(0f, 0f, w * d, h * d), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+            val inner = Painter.draw(ctx, w - 24f, h - 24f, d, look.finish, com.cerniera.kit.Ground.of(bands, 0, true), knots, System.currentTimeMillis(), look.radius.toFloat()).bitmap
+            cv.drawBitmap(inner, null, android.graphics.RectF(12f * d, 12f * d, (w - 12f) * d, (h - 12f) * d), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+            pic.setImageBitmap(out)
+        }
         draw()
         into.addView(text("The thread, as a widget: overdue knots against now, and the next one with Done. It never shows calendar events; the Agenda widget keeps those.", 13.5f, Kit.MUTED, 400),
             LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(12) })
-        into.addView(pic, LinearLayout.LayoutParams(px(300), px(150)).apply { bottomMargin = px(12) })
-        into.addView(Segmented(ctx, WidgetFinish.values().map { it.label }, Store.widgetFinish(ctx).ordinal) { i -> Store.setWidgetFinish(ctx, WidgetFinish.values()[i]); draw() })
-        val wm = getSystemService(android.appwidget.AppWidgetManager::class.java)
-        if (wm?.isRequestPinAppWidgetSupported == true) {
-            into.addView(Card(ctx).apply {
-                row(Row(ctx, "Add to home screen", "Your launcher asks where to put it.", endValue("Add", Kit.CHAMPAGNE)) {
-                    wm.requestPinAppWidget(android.content.ComponentName(ctx, NodoWidget::class.java), null, null)
-                })
-            }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(12) })
+        into.addView(pic, LinearLayout.LayoutParams(px(300), px(150)).apply { bottomMargin = px(16) })
+
+        val lookBox = LinearLayout(ctx).apply { orientation = LinearLayout.VERTICAL }
+        fun fill() {
+            lookBox.removeAllViews()
+            if (Look.foldWidgets(ctx)) {
+                val follows = Look.follows(ctx)
+                val now = Look.read(ctx)
+                val corner = Look.CORNERS.firstOrNull { it.second == now.radius }?.first ?: "${now.radius} dp"
+                lookBox.addView(Card(ctx).apply {
+                    row(Row(ctx, "Follow Fold Widgets",
+                        if (follows) "Its finish, corners and glass images dress this widget too: ${now.finish.short}, $corner corners. Change them in Fold Widgets."
+                        else "This widget keeps its own look, chosen below.",
+                        Toggle(ctx, follows) { on -> Look.setFollows(ctx, on); feel.tick(); fill(); draw() }))
+                }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(6) })
+                if (follows) return
+            }
+            lookBox.addView(label("Finish"))
+            lookBox.addView(Finishes.grid(ctx, Store.widgetFinish(ctx)) { f -> feel.tick(); Store.setWidgetFinish(ctx, f); draw() })
+            lookBox.addView(label("Corners"))
+            lookBox.addView(Segmented(ctx, Look.CORNERS.map { it.first }, Look.CORNERS.indexOfFirst { it.second == Look.radius(ctx) }.coerceAtLeast(0)) { i ->
+                Look.setRadius(ctx, Look.CORNERS[i].second); draw()
+            })
+            lookBox.addView(label("Glass"))
+            lookBox.addView(Card(ctx).apply {
+                for ((screen, name) in listOf("cover" to "Cover screen image", "main" to "Main screen image")) {
+                    val set = Look.ownImage(ctx, screen) != null
+                    row(Row(ctx, name, if (set) "Your own image is used behind the glass on this screen"
+                        else "Uses the system wallpaper. On a live wallpaper, or if the glass shows the wrong picture, choose the image you see on this screen.",
+                        endValue(if (set) "Clear" else "Choose", Kit.CHAMPAGNE)) {
+                        if (set) { Look.setOwnImage(ctx, screen, null); fill(); draw() }
+                        else { pendingImage = screen; startActivityForResult(Intent(Intent.ACTION_OPEN_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType("image/*"), 20) }
+                    })
+                }
+            })
         }
+        fill()
+        refillLook = { fill(); draw() }
+        into.addView(lookBox)
+
+        val seeing = com.cerniera.kit.Backdrop.canReadWallpaper()
+        into.addView(Card(ctx).apply {
+            row(Row(ctx, "See the wallpaper", if (seeing) "The glass finishes show the wallpaper behind the widget, once it has been tapped." else
+                "Vetro and Cristallo show the wallpaper itself only with all-files access, as in Fold Widgets. Without it they take its colours.",
+                endValue(if (seeing) "Allowed" else "Allow", if (seeing) Kit.MUTED else Kit.CHAMPAGNE)) {
+                if (!seeing) startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
+            })
+            val wm = getSystemService(android.appwidget.AppWidgetManager::class.java)
+            if (wm?.isRequestPinAppWidgetSupported == true) row(Row(ctx, "Add to home screen", "Your launcher asks where to put it.", endValue("Add", Kit.CHAMPAGNE)) {
+                wm.requestPinAppWidget(android.content.ComponentName(ctx, NodoWidget::class.java), null, null)
+            })
+        }, LinearLayout.LayoutParams(-1, -2).apply { topMargin = px(14) })
+    }
+
+    private var pendingImage: String? = null
+    private var refillLook: (() -> Unit)? = null
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        @Suppress("DEPRECATION") super.onActivityResult(requestCode, resultCode, data)
+        val uri = data?.data; val screen = pendingImage
+        if (requestCode == 20 && resultCode == RESULT_OK && uri != null && screen != null) {
+            runCatching { contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION) }
+            Look.setOwnImage(this, screen, uri.toString())
+            refillLook?.invoke()
+        }
+        pendingImage = null
     }
 
     /**
@@ -414,13 +488,19 @@ class MainActivity : Activity(), ThreadView.Listener {
     private fun widgetSheet() {
         val d = resources.displayMetrics.density
         val now = System.currentTimeMillis()
+        intent?.getStringExtra("radius")?.toIntOrNull()?.let { Look.setRadius(this, it) }
+        intent?.getStringExtra("finish")?.let { n -> runCatching { com.cerniera.kit.Finish.valueOf(n) }.getOrNull()?.let { Store.setWidgetFinish(this, it) } }
+        // Over the banded ground the finish tiles use, so the glass shows what it does to detail
+        val bands = Finishes.stripes()
+        val bandGround = com.cerniera.kit.Ground.of(bands, 0, true)
         val wanted = intent?.getStringExtra("size")?.split("x")?.mapNotNull { it.toFloatOrNull() }?.takeIf { it.size == 2 }
         val sizes = if (wanted != null) listOf(wanted[0] to wanted[1]) else listOf(150f to 150f, 160f to 340f, 370f to 170f, 520f to 220f)
         val col = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(px(12), insets[1] + px(12), px(12), px(12)); gravity = Gravity.CENTER }
         sizes.forEach { (w, h) ->
             col.addView(text("${w.toInt()} × ${h.toInt()} dp", 12f, Kit.MUTED, 500))
             col.addView(android.widget.ImageView(this).apply {
-                setImageBitmap(Painter.draw(this@MainActivity, w, h, d, Store.widgetFinish(this@MainActivity), knots, now).bitmap)
+                setImageBitmap(Painter.draw(this@MainActivity, w, h, d, Store.widgetFinish(this@MainActivity), bandGround, knots, now, Look.radius(this@MainActivity).toFloat()).bitmap)
+                background = android.graphics.drawable.BitmapDrawable(resources, bands)
                 adjustViewBounds = true; scaleType = android.widget.ImageView.ScaleType.FIT_CENTER
             }, LinearLayout.LayoutParams(-1, if (wanted != null) -1 else px(h.toInt())).apply { topMargin = px(6); bottomMargin = px(12) })
         }
