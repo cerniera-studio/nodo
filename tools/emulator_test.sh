@@ -55,7 +55,7 @@ adb shell am force-stop $PKG
 
 # A real reminder: a knot due in a minute arrives as a notification with Done and Later
 # (Home, not force-stop: Android cancels a force-stopped app's alarms)
-adb shell am start -n $PKG/.MainActivity --es add "in 1 min test knot from the emulator"; sleep 3
+adb shell am start -n $PKG/.MainActivity --es add "'in 1 min test knot from the emulator'"; sleep 3
 adb shell input keyevent KEYCODE_HOME
 adb shell dumpsys alarm | grep -B1 -A4 "com.cerniera.nodo" | head -30 | tee -a walk.txt
 sleep 75
