@@ -231,7 +231,7 @@ object Painter {
             if (!small) text("NOW", nowX, ty - 17f, 9.5f, a(f.glow, 0.85f), sans6, Paint.Align.CENTER, 0.14f)
             // Done today, faint, behind now
             knots.filter { it.done != null && Words.dayStart(it.done!!) == Words.dayStart(now) }.forEach { kk ->
-                val x = xFor(kk.done!!).coerceAtLeast(pad + 4f); knot(x, ty, 3.2f + kk.weight, faint, false, kk.weight == 3, false)
+                val x = xFor(kk.done!!).coerceIn(pad + 4f, nowX - 3f * (3.2f + kk.weight)); knot(x, ty, 3.2f + kk.weight, faint, false, kk.weight == 3, false)
             }
             // Overdue gathered against now; then what's to come, a gap apart, the rest coiled at the end
             // Each knot keeps clear of the one before by its own length: a knot never sits on another
