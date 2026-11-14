@@ -261,7 +261,14 @@ object Painter {
             val tLines = fit(focus.text, titleSize, sans6, titleW, 2)
             var ty0 = if (beside) figY - figSize * 0.62f + titleSize else figY + 14f * K + titleSize
             tLines.forEach { l -> text(l, tx0, ty0, titleSize, ink, sans6); ty0 += titleSize * 1.22f }
-            text(whenLine(focus, now), tx0, ty0 + 2f * K, 13.5f * K, if (lateFocus) f.late else f.glow, sans5)
+            // The figure already says the time: the line under the words says only the day
+            val dayLine = when {
+                lateFocus -> if (Words.dayStart(focus.due) == Words.dayStart(now)) "Overdue" else "Overdue since " + Words.dayName(focus.due)
+                Words.dayStart(focus.due) == Words.dayStart(now) -> "Today"
+                Words.dayStart(focus.due) == Words.dayStart(now + DAY) -> "Tomorrow"
+                else -> Words.dateLine(focus.due)
+            }
+            text(dayLine, tx0, ty0 + 2f * K, 13.5f * K, if (lateFocus) f.late else f.glow, sans5)
             var heroBottom = ty0 + 10f * K
             doneRect = if (tall) pill(pad + pillW, heroBottom + 8f * K + pillH / 2).also { heroBottom += 18f * K + pillH }
                 else pill(w - pad, if (beside) figY - figSize * 0.35f else figY + 14f * K + titleSize * 0.7f)
@@ -422,7 +429,8 @@ object Painter {
             doneRect = pill
             var y = pill.top + 4f * k + 11f * k
             focusLines.forEach { l -> text(l, pad, y, 14.5f * k, ink, sans6); y += 17.5f * k }
-            text(whenLine(focus, now), pad, y + 2f * k, 12.5f * k, if (focus.late(now)) f.late else f.glow, sans5)
+            // Kept clear of Done: on a small widget the line is shortened rather than run under it
+            text(fit(whenLine(focus, now), 12.5f * k, sans5, textW + (if (small) 0f else 60f * k), 1).first(), pad, y + 2f * k, 12.5f * k, if (focus.late(now)) f.late else f.glow, sans5)
             y += 18f * k
             if (thenRoom) {
                 val then = (late.drop(1) + ahead).firstOrNull { it !== focus }
