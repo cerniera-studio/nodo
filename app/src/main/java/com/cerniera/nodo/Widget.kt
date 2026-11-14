@@ -296,10 +296,10 @@ object Painter {
                 val rr = { kk: Knot -> (3.6f + kk.weight * 1.3f) * K }
                 val hh = { kk: Knot -> rr(kk) * (if (kk.weight == 3) 3.05f else 2.1f) }
                 var last = nowX; var lastHalf = 0f; var coiled = 0
-                class Spot(val kk: Knot, val x: Float)
-                val spots = ArrayList<Spot>()
-                for ((i, kk) in late.withIndex()) { val x = if (i == 0) nowX + hh(kk) else last + lastHalf + hh(kk) - 4f * K; last = x; lastHalf = hh(kk); spots += Spot(kk, x) }
-                for (kk in ahead) { val x = max(xFor(kk.due), last + lastHalf + hh(kk) + 5f * K); if (x + hh(kk) > endX + 2f) { coiled++; continue }; last = x; lastHalf = hh(kk); spots += Spot(kk, x) }
+                class HeroSpot(val kk: Knot, val x: Float)
+                val spots = ArrayList<HeroSpot>()
+                for ((i, kk) in late.withIndex()) { val x = if (i == 0) nowX + hh(kk) else last + lastHalf + hh(kk) - 4f * K; last = x; lastHalf = hh(kk); spots += HeroSpot(kk, x) }
+                for (kk in ahead) { val x = max(xFor(kk.due), last + lastHalf + hh(kk) + 5f * K); if (x + hh(kk) > endX + 2f) { coiled++; continue }; last = x; lastHalf = hh(kk); spots += HeroSpot(kk, x) }
                 spots.forEachIndexed { i, sp -> knot(sp.x, ty, rr(sp.kk), bodyOf(sp.kk), sp.kk === focus || (i == 0 && sp.kk.late(now)), sp.kk.weight == 3, false) }
                 if (coiled > 0) text("+$coiled", endX - 4f * K, ty - 11f * K, 11f * K, muted, sans5, Paint.Align.CENTER)
                 if (tiers > 0) {
