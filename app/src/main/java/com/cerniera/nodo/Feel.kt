@@ -44,7 +44,7 @@ class Feel private constructor(private val c: Context) {
         Thread {
             runCatching {
                 val dir = File(c.cacheDir, "feel-v1").apply { mkdirs() }
-                val sounds = mapOf("tick" to tick(), "crease" to crease(), "cinch" to cinch(), "slip" to slip(), "pluck" to pluck())
+                val sounds = mapOf("tick" to sTick(), "crease" to sCrease(), "cinch" to sCinch(), "slip" to sSlip(), "pluck" to sPluck())
                 sounds.forEach { (name, pcm) ->
                     val f = File(dir, "$name.wav")
                     if (!f.exists()) wav(f, pcm)
@@ -124,21 +124,21 @@ class Feel private constructor(private val c: Context) {
     private fun env(t: Double, att: Double, dec: Double): Double =
         if (t < att) t / att else exp(-(t - att) / dec * ln(1000.0))
 
-    private fun tick() = bandNoise((sr * 0.03).toInt(), 3.0, { 3200.0 }) { 1.2 * env(it, 0.001, 0.018) }
+    private fun sTick() = bandNoise((sr * 0.03).toInt(), 3.0, { 3200.0 }) { 1.2 * env(it, 0.001, 0.018) }
 
-    private fun crease(): FloatArray {
+    private fun sCrease(): FloatArray {
         val len = (sr * 0.14).toInt(); val out = FloatArray(len); var ph = 0.0
         for (i in 0 until len) {
             val t = i / sr.toDouble(); val f = 190 * Math.pow(90.0 / 190, (t / 0.08).coerceAtMost(1.0))
             ph += 2 * PI * f / sr
             out[i] = (0.55 * sin(ph) * env(t, 0.002, 0.09)).toFloat()
         }
-        val click = tick()
+        val click = sTick()
         for (i in click.indices) out[i] += click[i] * 0.7f
         return out
     }
 
-    private fun cinch(): FloatArray {
+    private fun sCinch(): FloatArray {
         val len = (sr * 0.3).toInt()
         val draw = bandNoise(len, 6.0, { 700 * Math.pow(2600.0 / 700, (it / 0.12).coerceAtMost(1.0)) }) { 1.4 * if (it < 0.17) env(it, 0.01, 0.12) else 0.0 }
         var ph = 0.0
@@ -151,10 +151,10 @@ class Feel private constructor(private val c: Context) {
         return draw
     }
 
-    private fun slip() = bandNoise((sr * 0.28).toInt(), 4.0, { 2400 * Math.pow(320.0 / 2400, (it / 0.24).coerceAtMost(1.0)) }) { 1.3 * env(it, 0.01, 0.23) }
+    private fun sSlip() = bandNoise((sr * 0.28).toInt(), 4.0, { 2400 * Math.pow(320.0 / 2400, (it / 0.24).coerceAtMost(1.0)) }) { 1.3 * env(it, 0.01, 0.23) }
 
     /** Karplus-Strong at 165 Hz; SoundPool's rate raises or lowers it with the thread's tension. */
-    private fun pluck(): FloatArray {
+    private fun sPluck(): FloatArray {
         val len = (sr * 1.4).toInt(); val n = sr / 165; val line = FloatArray(n) { Random.nextFloat() * 2 - 1 }
         val out = FloatArray(len); var j = 0; var lp = 0f
         for (i in 0 until len) {
