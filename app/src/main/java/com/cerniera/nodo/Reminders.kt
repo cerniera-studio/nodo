@@ -41,12 +41,13 @@ object Reminders {
         val was = prefs.getStringSet("armed", emptySet())!!.mapNotNull { it.toIntOrNull() }.toSet()
         (was - want.map { it.id }.toSet()).forEach { id -> pending(c, id, PendingIntent.FLAG_NO_CREATE)?.let { am.cancel(it); it.cancel() } }
         val exact = canExact(c)
+        android.util.Log.i("Nodo", "arming ${want.size} knot(s), exact=$exact")
         for (k in want) {
             val pi = pending(c, k.id) ?: continue
             runCatching {
                 if (exact) am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, k.due, pi)
                 else am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, k.due, pi)
-            }
+            }.onFailure { android.util.Log.w("Nodo", "could not arm knot ${k.id}", it) }
         }
         prefs.edit().putStringSet("armed", want.map { it.id.toString() }.toSet()).apply()
     }
@@ -78,7 +79,7 @@ object Reminders {
             .addAction(action("15 min", ActionReceiver.LATER, 15))
             .addAction(action("1 hour", ActionReceiver.LATER, 60))
             .build()
-        runCatching { nm.notify(k.id, n) }
+        runCatching { nm.notify(k.id, n) }.onFailure { android.util.Log.w("Nodo", "notify failed", it) }
     }
 }
 
@@ -86,8 +87,9 @@ object Reminders {
 class ReminderReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, i: Intent) {
         val id = i.getIntExtra("id", -1)
-        val k = Store.load(c).firstOrNull { it.id == id } ?: return
-        if (k.done == null) Reminders.notify(c, k)
+        val k = Store.load(c).firstOrNull { it.id == id }
+        android.util.Log.i("Nodo", "knot $id came due: ${if (k == null) "gone" else if (k.done != null) "already done" else "notifying"}")
+        if (k != null && k.done == null) Reminders.notify(c, k)
     }
 }
 

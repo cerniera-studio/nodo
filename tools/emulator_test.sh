@@ -57,6 +57,7 @@ adb shell am force-stop $PKG
 # (Home, not force-stop: Android cancels a force-stopped app's alarms)
 adb shell am start -n $PKG/.MainActivity --es add "in 1 min test knot from the emulator"; sleep 3
 adb shell input keyevent KEYCODE_HOME
+adb shell dumpsys alarm | grep -B1 -A4 "com.cerniera.nodo" | head -30 | tee -a walk.txt
 sleep 75
 adb shell cmd statusbar expand-notifications; sleep 2; shot notification
 adb shell dumpsys notification --noredact > notes.txt
