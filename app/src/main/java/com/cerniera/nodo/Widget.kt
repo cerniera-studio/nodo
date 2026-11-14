@@ -217,7 +217,8 @@ object Painter {
 
         if (!tall) {
             // The thread across: now near the left, done today behind it, what's to come ahead
-            val ty = if (small) headY + 26f else max(headY + 30f, h * 0.36f)
+            // The thread and the knot in focus sit as one block, centred in the height
+            val ty = if (small) headY + 26f else max(headY + 30f, h * 0.5f - 34f)
             val nowX = pad + (w - 2 * pad) * (if (small) 0.12f else 0.16f)
             val endX = w - pad - 12f
             val s = (endX - 10f - nowX) / ln(1f + 168f)
@@ -233,13 +234,16 @@ object Painter {
                 val x = xFor(kk.done!!).coerceAtLeast(pad + 4f); knot(x, ty, 3.2f + kk.weight, faint, false, kk.weight == 3, false)
             }
             // Overdue gathered against now; then what's to come, a gap apart, the rest coiled at the end
-            var last = nowX
-            late.forEachIndexed { i, kk -> val x = nowX + 9f + i * 12f; last = x; knot(x, ty, 3.6f + kk.weight * 1.3f, f.late, i == 0, kk.weight == 3, false) }
+            // Each knot keeps clear of the one before by its own length: a knot never sits on another
+            fun r(kk: Knot) = 3.6f + kk.weight * 1.3f
+            fun half(kk: Knot) = r(kk) * (if (kk.weight == 3) 3.05f else 2.1f)
+            var last = nowX; var lastHalf = 0f
+            late.forEachIndexed { i, kk -> val x = if (i == 0) nowX + half(kk) else last + lastHalf + half(kk) - 4f; last = x; lastHalf = half(kk); knot(x, ty, r(kk), f.late, i == 0, kk.weight == 3, false) }
             var coiled = 0
             for (kk in ahead) {
-                var x = max(xFor(kk.due), last + 16f)
-                if (x > endX - 8f) { coiled++; continue }
-                last = x
+                val x = max(xFor(kk.due), last + lastHalf + half(kk) + 5f)
+                if (x + half(kk) > endX + 2f) { coiled++; continue }
+                last = x; lastHalf = half(kk)
                 knot(x, ty, 3.6f + kk.weight * 1.3f, if (kk === focus) f.glow else ink, kk === focus, kk.weight == 3, false)
             }
             if (coiled > 0 && !small) text("+$coiled", endX - 4f, ty - 10f, 10.5f, muted, sans5, Paint.Align.CENTER)
