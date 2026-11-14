@@ -230,6 +230,130 @@ object Painter {
         val zone = ZoneId.systemDefault()
         fun midnights(n: Int) = (1..n).map { java.time.LocalDate.now(zone).plusDays(it.toLong()).atStartOfDay(zone).toInstant().toEpochMilli() }
 
+        // ---- Large: a hero layout. The knot in focus as the one large figure (its time, in Italiana,
+        // as Agenda leads with its date), its words and Done beside it, and the thread running the
+        // rest of the widget with the week ahead named along it. Even one knot fills the space with
+        // meaning: the week it sits in. ----
+        val hero = !small && ((!tall && h >= 290f && w >= 300f) || (tall && h >= 540f && w >= 220f))
+        if (hero) {
+            val K = if (tall) (w / 300f).coerceIn(1f, 2f) else (min(w, h * 1.3f) / 380f).coerceIn(1f, 2.2f)
+            val lateFocus = focus.late(now)
+            val figure = Words.hm(focus.due)
+            val figSize = if (tall) min(w * 0.3f, 104f * K) else min(h * 0.22f, 104f * K)
+            val figY = headY + 14f * K + figSize * 0.78f
+            text(figure, pad, figY, figSize, if (lateFocus) f.late else ink, display)
+            p.typeface = display; p.textSize = figSize
+            val figW = p.measureText(figure)
+            val pillScale = (K * 1.1f).coerceAtMost(1.8f)
+            p.typeface = sans6; p.textSize = 13f * pillScale
+            val pillW = p.measureText("Done") + 26f * pillScale; val pillH = 30f * pillScale
+            fun pill(right: Float, cy: Float): RectF {
+                val rr = RectF(right - pillW, cy - pillH / 2, right, cy + pillH / 2)
+                p.color = f.glow; cv.drawRoundRect(rr, pillH / 2, pillH / 2, p)
+                text("Done", rr.centerX(), rr.centerY() + 4.6f * pillScale, 13f * pillScale, f.fill or 0xFF000000.toInt(), sans6, Paint.Align.CENTER)
+                return rr
+            }
+            // Words: beside the figure when there's width, otherwise under it
+            val titleSize = 19f * K
+            val beside = !tall && w - 2 * pad - figW - pillW - 40f * K > 180f * K
+            val tx0 = if (beside) pad + figW + 24f * K else pad
+            val titleW = (if (beside) w - pad - pillW - 20f * K - tx0 else w - 2 * pad - (if (tall) 0f else pillW + 16f * K))
+            val tLines = fit(focus.text, titleSize, sans6, titleW, 2)
+            var ty0 = if (beside) figY - figSize * 0.62f + titleSize else figY + 14f * K + titleSize
+            tLines.forEach { l -> text(l, tx0, ty0, titleSize, ink, sans6); ty0 += titleSize * 1.22f }
+            text(whenLine(focus, now), tx0, ty0 + 2f * K, 13.5f * K, if (lateFocus) f.late else f.glow, sans5)
+            var heroBottom = ty0 + 10f * K
+            doneRect = if (tall) pill(pad + pillW, heroBottom + 8f * K + pillH / 2).also { heroBottom += 18f * K + pillH }
+                else pill(w - pad, if (beside) figY - figSize * 0.35f else figY + 14f * K + titleSize * 0.7f)
+            if (late.size > 1) { text("+${late.size - 1} more overdue", tx0, heroBottom + 14f * K, 12.5f * K, f.late, sans5); heroBottom += 22f * K }
+
+            val others = (late.drop(1) + ahead).filter { it !== focus }
+            val dayFmt = { i: Int, t: Long -> if (i == 1) "Tomorrow" else Words.dayName(t) + " " + java.time.Instant.ofEpochMilli(t).atZone(zone).dayOfMonth }
+            if (!tall) {
+                // The thread across the lower part, the week named under it, the other knots named below
+                val nowX = pad + (w - 2 * pad) * 0.1f
+                val endX = w - pad - 12f * K
+                val s = (endX - 10f * K - nowX) / ln(1f + 168f)
+                fun xFor(t: Long): Float { val hrs = (t - now) / HOUR.toFloat(); return if (hrs >= 0) nowX + s * ln(1f + hrs) else nowX - s * ln(1f - hrs) }
+                val tierH = 38f * K
+                val room = h - pad - heroBottom
+                val tiers = ((room - 110f * K) / tierH).toInt().coerceIn(0, 2)
+                val ty = (heroBottom + (room - 50f * K - tiers * tierH) * 0.45f + 30f * K).coerceIn(heroBottom + 34f * K, h - pad - 44f * K - tiers * tierH)
+                st.color = a(ink, 0.5f); st.strokeWidth = 1.4f * K; st.pathEffect = null; cv.drawLine(pad - 2f, ty, endX, ty, st)
+                st.pathEffect = DashPathEffect(floatArrayOf(2f * K, 6f * K), 0f); st.color = a(f.glow, 0.45f); cv.drawLine(pad - 2f, ty, endX, ty, st); st.pathEffect = null
+                fray(endX, ty, false)
+                p.color = a(f.glow, 0.6f); cv.drawRect(nowX - 0.5f, ty - 14f * K, nowX + 0.5f, ty + 14f * K, p)
+                text("NOW", nowX, ty - 19f * K, 9.5f * K, a(f.glow, 0.85f), sans6, Paint.Align.CENTER, 0.14f)
+                var lastLabel = -1e9f
+                midnights(14).forEachIndexed { i, m ->
+                    val x = xFor(m); if (x > endX - 20f * K) return@forEachIndexed
+                    p.color = a(ink, 0.25f); cv.drawRect(x - 0.5f, ty + 7f * K, x + 0.5f, ty + 13f * K, p)
+                    if (x - lastLabel > 58f * K) { text(dayFmt(i + 1, m), x, ty + 27f * K, 11f * K, a(ink, 0.45f), sans5, Paint.Align.CENTER); lastLabel = x }
+                }
+                knots.filter { it.done != null && Words.dayStart(it.done!!) == Words.dayStart(now) }.forEach { kk ->
+                    knot(min(max(xFor(kk.done!!), pad + 4f), nowX - 3f * (3.2f + kk.weight) * K), ty, (3.2f + kk.weight) * K, faint, false, kk.weight == 3, false)
+                }
+                val rr = { kk: Knot -> (3.6f + kk.weight * 1.3f) * K }
+                val hh = { kk: Knot -> rr(kk) * (if (kk.weight == 3) 3.05f else 2.1f) }
+                var last = nowX; var lastHalf = 0f; var coiled = 0
+                class Spot(val kk: Knot, val x: Float)
+                val spots = ArrayList<Spot>()
+                for ((i, kk) in late.withIndex()) { val x = if (i == 0) nowX + hh(kk) else last + lastHalf + hh(kk) - 4f * K; last = x; lastHalf = hh(kk); spots += Spot(kk, x) }
+                for (kk in ahead) { val x = max(xFor(kk.due), last + lastHalf + hh(kk) + 5f * K); if (x + hh(kk) > endX + 2f) { coiled++; continue }; last = x; lastHalf = hh(kk); spots += Spot(kk, x) }
+                spots.forEachIndexed { i, sp -> knot(sp.x, ty, rr(sp.kk), bodyOf(sp.kk), sp.kk === focus || (i == 0 && sp.kk.late(now)), sp.kk.weight == 3, false) }
+                if (coiled > 0) text("+$coiled", endX - 4f * K, ty - 11f * K, 11f * K, muted, sans5, Paint.Align.CENTER)
+                if (tiers > 0) {
+                    val labelW = min(170f * K, (w - 2 * pad) / 3.2f)
+                    val rightEdge = FloatArray(tiers) { -1e9f }; var t = 0
+                    for (sp in spots) {
+                        if (sp.kk === focus) continue
+                        val cx = sp.x.coerceIn(pad + labelW / 2, w - pad - labelW / 2)
+                        val tier = (0 until tiers).map { (t + it) % tiers }.firstOrNull { cx - labelW / 2 > rightEdge[it] + 10f * K } ?: continue
+                        t = tier + 1; rightEdge[tier] = cx + labelW / 2
+                        val base = ty + 56f * K + tier * tierH
+                        text(fit(sp.kk.text, 13.5f * K, sans5, labelW, 1).first(), cx, base, 13.5f * K, ink, sans5, Paint.Align.CENTER)
+                        text(whenLine(sp.kk, now), cx, base + 15f * K, 11.5f * K, if (sp.kk.late(now)) f.late else muted, sans5, Paint.Align.CENTER)
+                        p.color = a(f.glow, 0.3f); cv.drawRect(sp.x - 0.5f, ty + half(sp.kk) / 2 + 16f * K, sp.x + 0.5f, base - 14f * K, p)
+                    }
+                }
+                if (others.isEmpty()) text("Nothing else on the thread this week", w - pad, h - pad, 12.5f * K, muted, sans5, Paint.Align.RIGHT)
+            } else {
+                // The thread down the rest, the days named to its left, the other knots to its right
+                val tx = pad + 54f * K
+                val top = heroBottom + 34f * K
+                val endY = h - pad - 12f * K
+                val s = (endY - 10f * K - top) / ln(1f + 168f)
+                fun yFor(t: Long): Float = top + s * ln(1f + max(0f, (t - now) / HOUR.toFloat()))
+                st.color = a(ink, 0.5f); st.strokeWidth = 1.4f * K; st.pathEffect = null; cv.drawLine(tx, top - 18f * K, tx, endY, st)
+                fray(tx, endY, true)
+                p.color = a(f.glow, 0.6f); cv.drawRect(tx - 12f * K, top - 0.5f, tx + 12f * K, top + 0.5f, p)
+                text("NOW", tx - 16f * K, top + 3.5f * K, 9.5f * K, a(f.glow, 0.85f), sans6, Paint.Align.RIGHT, 0.14f)
+                var lastLabel = -1e9f
+                midnights(14).forEachIndexed { i, m ->
+                    val y = yFor(m); if (y > endY - 16f * K) return@forEachIndexed
+                    p.color = a(ink, 0.25f); cv.drawRect(tx - 9f * K, y - 0.5f, tx - 4f * K, y + 0.5f, p)
+                    if (y - lastLabel > 20f * K) { text(dayFmt(i + 1, m), tx - 14f * K, y + 4f * K, 11f * K, a(ink, 0.45f), sans5, Paint.Align.RIGHT); lastLabel = y }
+                }
+                val lx = tx + 18f * K; val textW = w - lx - pad
+                var cursor = top + 4f * K
+                val all = late + ahead
+                for ((i, kk) in all.withIndex()) {
+                    val isFocus = kk === focus
+                    val want = if (kk.late(now)) cursor + 8f * K else max(yFor(kk.due), cursor + 8f * K)
+                    val blockH = if (isFocus) 18f * K else 13.5f * K + 30f * K
+                    if (want + blockH > endY + 4f * K) { text("+${all.size - i} later", lx, min(cursor + 14f * K, endY), 11.5f * K, muted, sans5); break }
+                    knot(tx, want, (3.6f + kk.weight * 1.3f) * K, bodyOf(kk), isFocus || kk.late(now), kk.weight == 3, true)
+                    if (isFocus) { cursor = want + 18f * K; continue }   // its words are the hero's
+                    text(fit(kk.text, 13.5f * K, sans5, textW, 1).first(), lx, want + 4.5f * K, 13.5f * K, ink, sans5)
+                    text(whenLine(kk, now), lx, want + 20f * K, 11.5f * K, if (kk.late(now)) f.late else muted, sans5)
+                    cursor = want + blockH
+                }
+                if (others.isEmpty()) text("Nothing else this week", lx, (top + endY) / 2, 12.5f * K, muted, sans5)
+            }
+            val spoken = "Nodo. " + (if (late.isNotEmpty()) "${late.size} overdue. " else "") + "${focus.text}, ${whenLine(focus, now)}."
+            return Picture(bmp, doneRect, focus, spoken)
+        }
+
         if (!tall) {
             // ---- Wide: the thread across ------------------------------------------------------
             val nowX = pad + (w - 2 * pad) * (if (small) 0.12f else 0.16f)
