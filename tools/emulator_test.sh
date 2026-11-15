@@ -91,7 +91,8 @@ adb shell wm size reset; adb shell wm density reset
 FW_URL=https://github.com/cerniera-studio/fold-widgets/releases/latest/download/FoldWidgets.apk
 [ -n "$FW_TAG" ] && FW_URL=https://github.com/cerniera-studio/fold-widgets/releases/download/$FW_TAG/FoldWidgets.apk
 note "Fold Widgets beside: ${FW_TAG:-latest}"
-if curl -sfL -o fw.apk "$FW_URL" && adb install -r fw.apk >/dev/null 2>&1; then
+if ls fw-branch/*.apk >/dev/null 2>&1; then cp fw-branch/*.apk fw.apk; note "Fold Widgets beside: a branch build"; else curl -sfL -o fw.apk "$FW_URL"; fi
+if [ -s fw.apk ] && adb install -r fw.apk >/dev/null 2>&1; then
   adb logcat -c
   adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4
   adb shell input swipe 540 1700 540 300 300; sleep 1; shot follow
