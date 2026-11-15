@@ -117,8 +117,12 @@ if [ -s fw.apk ] && adb install -r fw.apk >/dev/null 2>&1; then
     read -r x1 y1 x2 y2 <<< "$(echo "$b" | grep -o '[0-9]*' | tr '\n' ' ')"; adb shell input tap $(( (x1 + x2) / 2 )) $(( (y1 + y2) / 2 )); sleep 3
   fi
   adb logcat -c
-  adb shell input keyevent HOME; sleep 2; adb shell input swipe 300 900 700 900 200; sleep 1; adb shell input keyevent HOME; sleep 8
+  # The launcher puts it on the first page with room, usually the second: go there and rest
+  read -r sw sh <<< "$(adb shell wm size | tail -1 | grep -o '[0-9]*x[0-9]*' | tr 'x' ' ')"
+  adb shell input keyevent HOME; sleep 2
+  adb shell input swipe $(( sw * 85 / 100 )) $(( sh / 2 )) $(( sw * 15 / 100 )) $(( sh / 2 )) 250; sleep 8
   shot home-live
+  adb shell run-as $FW sh -c 'cat shared_prefs/*.xml' 2>/dev/null | grep -E 'live_note|follower_seats' | sed 's/^ */  Fold Widgets: /' >> walk.txt
   live=$(adb shell dumpsys accessibility | grep -c LiveService)
   seat=$(adb logcat -d -s Nodo:I | grep "seats:" | tail -1)
   case "$seat" in
