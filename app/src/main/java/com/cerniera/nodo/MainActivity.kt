@@ -122,6 +122,7 @@ class MainActivity : Activity(), ThreadView.Listener {
                 id >= 0 -> knots.firstOrNull { it.id == id }?.let { tapped(it) }
                 i.getStringExtra("open") == "settings" -> settings()
                 i.getStringExtra("open") == "widget" -> widgetSheet()
+                i.getStringExtra("open") == "scene" -> scene()
                 // Test only: ask the launcher to place the widget, as "Add to home screen" does
                 i.getStringExtra("open") == "pin" -> getSystemService(android.appwidget.AppWidgetManager::class.java)
                     ?.requestPinAppWidget(android.content.ComponentName(this, NodoWidget::class.java), null, null)
@@ -508,6 +509,44 @@ class MainActivity : Activity(), ThreadView.Listener {
             }, LinearLayout.LayoutParams(-1, if (wanted != null) -1 else px(h.toInt())).apply { topMargin = px(6); bottomMargin = px(12) })
         }
         root.addView(FrameLayout(this).apply { setBackgroundColor(0xFF3A4A44.toInt()); addView(ScrollView(this@MainActivity).apply { isFillViewport = true; addView(col) }); isClickable = true }, FrameLayout.LayoutParams(-1, -1))
+    }
+
+    /**
+     * Test only: a home screen made up for comparing finishes. The wallpaper at [wall] fills the
+     * screen as a launcher would, and the widget sits on it in each of [finishes], one below the
+     * other, each reading the slice of wallpaper truly behind it: --es wall /sdcard/Download/x.jpg
+     * --es finishes GOCCIA,CRISTALLO,VETRO
+     */
+    private fun scene() {
+        val d = resources.displayMetrics.density
+        val sw = resources.displayMetrics.widthPixels; val sh = resources.displayMetrics.heightPixels
+        val src = android.graphics.BitmapFactory.decodeFile(intent?.getStringExtra("wall") ?: return) ?: return
+        val wall = android.graphics.Bitmap.createBitmap(sw, sh, android.graphics.Bitmap.Config.ARGB_8888)
+        val k = maxOf(sw / src.width.toFloat(), sh / src.height.toFloat())
+        android.graphics.Canvas(wall).apply { translate((sw - src.width * k) / 2f, (sh - src.height * k) / 2f); scale(k, k); drawBitmap(src, 0f, 0f, android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)) }
+        val fins = (intent?.getStringExtra("finishes") ?: "GOCCIA,CRISTALLO,VETRO").split(",").mapNotNull { runCatching { com.cerniera.kit.Finish.valueOf(it.trim()) }.getOrNull() }
+        val now = System.currentTimeMillis()
+        val wDp = minOf(380f, sw / d - 32f); val hDp = 180f
+        val gap = ((sh / d - 80f - fins.size * hDp) / (fins.size + 1)).coerceAtLeast(12f)
+        val out = wall.copy(android.graphics.Bitmap.Config.ARGB_8888, true); val cv = android.graphics.Canvas(out)
+        val label = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply { typeface = Kit.sans(this@MainActivity, 600); textSize = 12f * d; color = 0xFFFFFFFF.toInt(); setShadowLayer(4f * d, 0f, 0f, 0xCC000000.toInt()); letterSpacing = 0.12f }
+        fins.forEachIndexed { i, f ->
+            val left = (sw - wDp * d) / 2f; val top = (40f + gap + i * (hDp + gap)) * d
+            val m = 0.15f * minOf(wDp, hDp) * d
+            // The slice behind the widget, with what lies just beyond each edge, as Backdrop cuts it
+            val sx = (left - m).toInt(); val sy = (top - m).toInt()
+            val cw = (wDp * d + 2 * m).toInt(); val ch = (hDp * d + 2 * m).toInt()
+            val slice = android.graphics.Bitmap.createBitmap(cw, ch, android.graphics.Bitmap.Config.ARGB_8888)
+            android.graphics.Canvas(slice).drawBitmap(wall, -sx.toFloat(), -sy.toFloat(), null)
+            val s = 360f / (wDp * d)
+            val small = android.graphics.Bitmap.createScaledBitmap(slice, (cw * s).toInt(), (ch * s).toInt(), true)
+            val ground = com.cerniera.kit.Ground.of(small, (m * s).toInt(), true)
+            val pic = Painter.draw(this, wDp, hDp, d, f, ground, knots, now, Look.radius(this).toFloat()).bitmap
+            cv.drawBitmap(pic, null, android.graphics.RectF(left, top, left + wDp * d, top + hDp * d), android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG))
+            cv.drawText(f.short.uppercase(), left + 4f * d, top - 8f * d, label)
+        }
+        root.addView(android.widget.ImageView(this).apply { setImageBitmap(out); scaleType = android.widget.ImageView.ScaleType.FIT_XY; isClickable = true }, FrameLayout.LayoutParams(-1, -1))
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
     }
 
     private fun notificationsOn() = getSystemService(NotificationManager::class.java)?.areNotificationsEnabled() == true

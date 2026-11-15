@@ -59,9 +59,17 @@ for seed in examples one; do
   done
 done
 # Every finish (Fold Widgets' ten, from the Kit) at 4x2 on the cover, over the banded ground
-for fin in VETRO CRISTALLO SMOKE MEMBRANE ROSSO AVORIO CARBONIO CERAMICA VISCONTI PAPER; do
+for fin in VETRO CRISTALLO GOCCIA SMOKE MEMBRANE ROSSO AVORIO CARBONIO CERAMICA VISCONTI PAPER; do
   adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget --es size 380x180 --es finish $fin; sleep 3
   adb exec-out screencap -p > "shot-finish-$fin.png"
+done
+# Goccia beside Cristallo and Vetro, on a made-up home screen over four wallpapers, each widget
+# reading the slice truly behind it
+adb shell appops set --uid $PKG MANAGE_EXTERNAL_STORAGE allow
+for wall in tools/walls/*.jpg; do
+  n=$(basename "$wall" .jpg); adb push "$wall" /sdcard/Download/$n.jpg >/dev/null
+  adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open scene --es wall /sdcard/Download/$n.jpg --es finishes GOCCIA,CRISTALLO,VETRO; sleep 4
+  adb exec-out screencap -p > "shot-scene-$n.png"
 done
 # Fold Widgets' four corners, at 4x2
 for r in 0 14 24 32; do
