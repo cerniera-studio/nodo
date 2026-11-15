@@ -17,7 +17,7 @@ import com.cerniera.kit.Finish
  * chosen in Fold Widgets for that screen, the same one Fold Widgets' own glass shows.
  *
  * Without Fold Widgets (or with following switched off) Nodo keeps a look of its own, with the
- * same choices: the ten finishes, the four corners and an image for each screen's glass.
+ * same choices: the eleven finishes, the four corners and an image for each screen's glass.
  */
 object Look {
     const val AUTHORITY = "com.fergusonconsultancy.foldwidgets.look"
