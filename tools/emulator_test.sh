@@ -107,6 +107,8 @@ if [ -s fw.apk ] && adb install -r fw.apk >/dev/null 2>&1; then
   FW=com.fergusonconsultancy.foldwidgets
   adb shell settings put secure enabled_accessibility_services $FW/$FW.LiveService
   adb shell settings put secure accessibility_enabled 1
+  # Both may see the wallpaper image, as on the phone, so live mode can also line it up and measure its tint
+  adb shell appops set --uid $FW MANAGE_EXTERNAL_STORAGE allow; adb shell appops set --uid $PKG MANAGE_EXTERNAL_STORAGE allow
   adb shell input keyevent HOME; sleep 2
   adb shell am start -n $PKG/.MainActivity --es open pin; sleep 3
   adb shell uiautomator dump /sdcard/pin.xml >/dev/null 2>&1; adb pull /sdcard/pin.xml pin.xml >/dev/null 2>&1
@@ -133,7 +135,7 @@ if [ -s fw.apk ] && adb install -r fw.apk >/dev/null 2>&1; then
   seat=$(adb logcat -d -s Nodo:I | grep "seats:" | tail -1)
   case "$seat" in
     *"placed by Fold Widgets"*) note "Seat from live mode: ${seat#*seats: }" ;;
-    *) note "::warning::Nodo's widget was not placed by live mode (pin dialog: ${b:-not found}, live mode in accessibility: $live)" ;;
+    *) note "::error::Nodo's widget was not placed by live mode (pin dialog: ${b:-not found}, live mode in accessibility: $live)" ;;
   esac
   adb shell settings delete secure enabled_accessibility_services >/dev/null 2>&1
   adb shell pm uninstall $FW >/dev/null 2>&1
