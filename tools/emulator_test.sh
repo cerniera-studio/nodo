@@ -122,7 +122,7 @@ if [ -s fw.apk ] && adb install -r fw.apk >/dev/null 2>&1; then
   adb shell input keyevent HOME; sleep 2
   adb shell input swipe $(( sw * 85 / 100 )) $(( sh / 2 )) $(( sw * 15 / 100 )) $(( sh / 2 )) 250; sleep 8
   shot home-live
-  adb shell run-as $FW sh -c 'cat shared_prefs/*.xml' 2>/dev/null | grep -E 'live_note|follower_seats' | sed 's/^ */  Fold Widgets: /' >> walk.txt
+  timeout 20 adb shell "run-as $FW cat shared_prefs/fold_widgets.xml" < /dev/null 2>/dev/null | grep -E 'live_note|follower_seats' | sed 's/^ */  Fold Widgets: /' >> walk.txt
   live=$(adb shell dumpsys accessibility | grep -c LiveService)
   seat=$(adb logcat -d -s Nodo:I | grep "seats:" | tail -1)
   case "$seat" in
