@@ -129,7 +129,7 @@ object Seats {
             val id = ids.filter { it !in claimed }.minByOrNull { distance(it) } ?: break
             claimed += id
             e.putString("seat_$id", Backdrop.Seat(s.left, s.top, s.width, s.height, s.screenW, s.screenH, true).encode())
-            s.live?.let { e.putString("live_$id", listOf(it.ox, it.oy, it.gain!![0], it.gain[1], it.gain[2], it.screenW, it.screenH).joinToString(",")) } ?: e.remove("live_$id")
+            s.live?.let { v -> val g = v.gain ?: floatArrayOf(1f, 1f, 1f); e.putString("live_$id", listOf(v.ox, v.oy, g[0], g[1], g[2], v.screenW, v.screenH).joinToString(",")) } ?: e.remove("live_$id")
             placed++
         }
         e.putLong("seatsAt", at).apply()
