@@ -110,8 +110,9 @@ if [ -s fw.apk ] && adb install -r fw.apk >/dev/null 2>&1; then
   adb shell input keyevent HOME; sleep 2
   adb shell am start -n $PKG/.MainActivity --es open pin; sleep 3
   adb shell uiautomator dump /sdcard/pin.xml >/dev/null 2>&1; adb pull /sdcard/pin.xml pin.xml >/dev/null 2>&1
-  b=$(grep -o 'text="[^"]*[Aa][Dd][Dd][^"]*"[^>]*bounds="[^"]*"' pin.xml | grep -iv "home screen\"" | tail -1 | grep -o 'bounds="[^"]*"')
-  [ -z "$b" ] && b=$(grep -o 'text="[^"]*[Aa][Dd][Dd][^"]*"[^>]*bounds="[^"]*"' pin.xml | tail -1 | grep -o 'bounds="[^"]*"')
+  shot pin-dialog; cp pin.xml pin-dialog.xml 2>/dev/null
+  # The launcher's button: "Add to home screen", "Add" or "Add automatically", whichever it shows
+  b=$(tr '>' '\n' < pin.xml | grep -i 'text="add' | grep -o 'bounds="[^"]*"' | tail -1)
   if [ -n "$b" ]; then
     read -r x1 y1 x2 y2 <<< "$(echo "$b" | grep -o '[0-9]*' | tr '\n' ' ')"; adb shell input tap $(( (x1 + x2) / 2 )) $(( (y1 + y2) / 2 )); sleep 3
   fi
