@@ -538,7 +538,7 @@ class MainActivity : Activity(), ThreadView.Listener {
             val cw = (wDp * d + 2 * m).toInt(); val ch = (hDp * d + 2 * m).toInt()
             val slice = android.graphics.Bitmap.createBitmap(cw, ch, android.graphics.Bitmap.Config.ARGB_8888)
             android.graphics.Canvas(slice).drawBitmap(wall, -sx.toFloat(), -sy.toFloat(), null)
-            val s = 360f / (wDp * d)
+            val s = com.cerniera.kit.Backdrop.INNER_WIDTH / (wDp * d)
             val small = android.graphics.Bitmap.createScaledBitmap(slice, (cw * s).toInt(), (ch * s).toInt(), true)
             val ground = com.cerniera.kit.Ground.of(small, (m * s).toInt(), true)
             val pic = Painter.draw(this, wDp, hDp, d, f, ground, knots, now, Look.radius(this).toFloat()).bitmap
