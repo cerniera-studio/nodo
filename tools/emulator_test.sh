@@ -88,7 +88,11 @@ adb shell cmd statusbar collapse
 adb shell wm size reset; adb shell wm density reset
 
 # Following Fold Widgets' look: install its latest release beside Nodo, and see Nodo's settings read it
-if curl -sfL -o fw.apk https://github.com/cerniera-studio/fold-widgets/releases/latest/download/FoldWidgets.apk && adb install -r fw.apk >/dev/null 2>&1; then
+FW_URL=https://github.com/cerniera-studio/fold-widgets/releases/latest/download/FoldWidgets.apk
+[ -n "$FW_TAG" ] && FW_URL=https://github.com/cerniera-studio/fold-widgets/releases/download/$FW_TAG/FoldWidgets.apk
+note "Fold Widgets beside: ${FW_TAG:-latest}"
+if ls fw-branch/*.apk >/dev/null 2>&1; then cp fw-branch/*.apk fw.apk; note "Fold Widgets beside: a branch build"; else curl -sfL -o fw.apk "$FW_URL"; fi
+if [ -s fw.apk ] && adb install -r fw.apk >/dev/null 2>&1; then
   adb logcat -c
   adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4
   adb shell input swipe 540 1700 540 300 300; sleep 1; shot follow
@@ -97,7 +101,44 @@ if curl -sfL -o fw.apk https://github.com/cerniera-studio/fold-widgets/releases/
     *"from Fold Widgets"*) note "Follows Fold Widgets: ${line#*look: }" ;;
     *) note "::error::Nodo did not follow Fold Widgets' look (${line#*look: })" ;;
   esac
-  adb shell pm uninstall com.fergusonconsultancy.foldwidgets >/dev/null 2>&1
+
+  # Where the widget sits, from Fold Widgets' live mode: switch it on, put Nodo's widget on the home
+  # screen through the launcher's own dialog, and see Nodo take its seat from what live mode saw
+  FW=com.fergusonconsultancy.foldwidgets
+  adb shell settings put secure enabled_accessibility_services $FW/$FW.LiveService
+  adb shell settings put secure accessibility_enabled 1
+  # Both may see the wallpaper image, as on the phone, so live mode can also line it up and measure its tint
+  adb shell appops set --uid $FW MANAGE_EXTERNAL_STORAGE allow; adb shell appops set --uid $PKG MANAGE_EXTERNAL_STORAGE allow
+  adb shell input keyevent HOME; sleep 2
+  adb shell am start -n $PKG/.MainActivity --es open pin; sleep 3
+  adb shell uiautomator dump /sdcard/pin.xml >/dev/null 2>&1; adb pull /sdcard/pin.xml pin.xml >/dev/null 2>&1
+  shot pin-dialog; cp pin.xml pin-dialog.xml 2>/dev/null
+  # The launcher's button: "Add to home screen", "Add" or "Add automatically", whichever it shows
+  b=$(tr '>' '\n' < pin.xml | grep -i 'text="add' | grep -o 'bounds="[^"]*"' | tail -1)
+  if [ -n "$b" ]; then
+    read -r x1 y1 x2 y2 <<< "$(echo "$b" | grep -o '[0-9]*' | tr '\n' ' ')"; adb shell input tap $(( (x1 + x2) / 2 )) $(( (y1 + y2) / 2 )); sleep 3
+  fi
+  adb logcat -c
+  # The launcher puts it on the first page with room, usually the second: go there and rest
+  read -r sw sh <<< "$(adb shell wm size | tail -1 | grep -o '[0-9]*x[0-9]*' | tr 'x' ' ')"
+  adb shell input keyevent HOME; sleep 2
+  adb shell input swipe $(( sw * 85 / 100 )) $(( sh / 2 )) $(( sw * 15 / 100 )) $(( sh / 2 )) 250; sleep 8
+  # Once more, now live mode is surely running: back a page and forward again, then rest
+  adb shell input swipe $(( sw * 15 / 100 )) $(( sh / 2 )) $(( sw * 85 / 100 )) $(( sh / 2 )) 250; sleep 2
+  adb shell input swipe $(( sw * 85 / 100 )) $(( sh / 2 )) $(( sw * 15 / 100 )) $(( sh / 2 )) 250; sleep 8
+  shot home-live
+  adb shell uiautomator dump /sdcard/home.xml >/dev/null 2>&1; adb pull /sdcard/home.xml home.xml >/dev/null 2>&1
+  grep -q 'com.cerniera.nodo:id/root' home.xml && note "Nodo's widget is on the page the launcher shows" || note "Nodo's widget is not on the page shown"
+  timeout 20 adb shell "run-as $FW cat shared_prefs/fold_widgets.xml" < /dev/null 2>/dev/null | grep -E 'live_note|follower_seats' | sed 's/^ */  Fold Widgets: /' >> walk.txt
+  live=$(adb shell dumpsys accessibility | grep -c LiveService)
+  adb logcat -d -s FoldWidgets:I | tail -8 | sed 's/^/  /' >> walk.txt
+  seat=$(adb logcat -d -s Nodo:I | grep "seats:" | tail -1)
+  case "$seat" in
+    *"placed by Fold Widgets"*) note "Seat from live mode: ${seat#*seats: }" ;;
+    *) note "::error::Nodo's widget was not placed by live mode (pin dialog: ${b:-not found}, live mode in accessibility: $live)" ;;
+  esac
+  adb shell settings delete secure enabled_accessibility_services >/dev/null 2>&1
+  adb shell pm uninstall $FW >/dev/null 2>&1
 fi
 
 adb logcat -d > app-log.txt

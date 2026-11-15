@@ -3,6 +3,15 @@ name: Build APK
 on:
   push:
   workflow_dispatch:
+    inputs:
+      fold_widgets:
+        description: Fold Widgets release to test beside (a build-N tag); the latest by default
+        required: false
+        default: ''
+      fold_widgets_run:
+        description: Or a Fold Widgets branch build to test beside (its Build APK run id)
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -72,6 +81,16 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Fetch a Fold Widgets branch build
+        if: github.event.inputs.fold_widgets_run != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: FoldWidgets-apk
+          repository: cerniera-studio/fold-widgets
+          run-id: ${{ github.event.inputs.fold_widgets_run }}
+          github-token: ${{ github.token }}
+          path: fw-branch
+
       - name: Run on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -80,7 +99,7 @@ jobs:
           target: google_apis
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
-          script: bash tools/emulator_test.sh
+          script: FW_TAG='${{ github.event.inputs.fold_widgets }}' bash tools/emulator_test.sh
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -90,6 +109,7 @@ jobs:
             shot-*.png
             shapes.txt
             walk.txt
+            pin-dialog.xml
             app-log.txt
 
       - name: Attach screenshots to the release
@@ -102,4 +122,5 @@ jobs:
             shot-*.png
             shapes.txt
             walk.txt
+            pin-dialog.xml
             app-log.txt
