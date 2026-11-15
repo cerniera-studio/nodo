@@ -395,7 +395,7 @@ class MainActivity : Activity(), ThreadView.Listener {
     /**
      * The widget: a live picture of it over a banded ground, then its look. With Fold Widgets
      * installed it follows Fold Widgets' look by default (finish, corners, glass images); otherwise,
-     * or with following off, Nodo's own choices of the same: ten finishes, four corners, an image for
+     * or with following off, Nodo's own choices of the same: eleven finishes, four corners, an image for
      * each screen's glass. Then the wallpaper permission and Add to home screen.
      */
     private fun widgetCard(into: LinearLayout) {
