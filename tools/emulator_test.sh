@@ -88,7 +88,10 @@ adb shell cmd statusbar collapse
 adb shell wm size reset; adb shell wm density reset
 
 # Following Fold Widgets' look: install its latest release beside Nodo, and see Nodo's settings read it
-if curl -sfL -o fw.apk https://github.com/cerniera-studio/fold-widgets/releases/latest/download/FoldWidgets.apk && adb install -r fw.apk >/dev/null 2>&1; then
+FW_URL=https://github.com/cerniera-studio/fold-widgets/releases/latest/download/FoldWidgets.apk
+[ -n "$FW_TAG" ] && FW_URL=https://github.com/cerniera-studio/fold-widgets/releases/download/$FW_TAG/FoldWidgets.apk
+note "Fold Widgets beside: ${FW_TAG:-latest}"
+if curl -sfL -o fw.apk "$FW_URL" && adb install -r fw.apk >/dev/null 2>&1; then
   adb logcat -c
   adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4
   adb shell input swipe 540 1700 540 300 300; sleep 1; shot follow
@@ -97,7 +100,31 @@ if curl -sfL -o fw.apk https://github.com/cerniera-studio/fold-widgets/releases/
     *"from Fold Widgets"*) note "Follows Fold Widgets: ${line#*look: }" ;;
     *) note "::error::Nodo did not follow Fold Widgets' look (${line#*look: })" ;;
   esac
-  adb shell pm uninstall com.fergusonconsultancy.foldwidgets >/dev/null 2>&1
+
+  # Where the widget sits, from Fold Widgets' live mode: switch it on, put Nodo's widget on the home
+  # screen through the launcher's own dialog, and see Nodo take its seat from what live mode saw
+  FW=com.fergusonconsultancy.foldwidgets
+  adb shell settings put secure enabled_accessibility_services $FW/$FW.LiveService
+  adb shell settings put secure accessibility_enabled 1
+  adb shell input keyevent HOME; sleep 2
+  adb shell am start -n $PKG/.MainActivity --es open pin; sleep 3
+  adb shell uiautomator dump /sdcard/pin.xml >/dev/null 2>&1; adb pull /sdcard/pin.xml pin.xml >/dev/null 2>&1
+  b=$(grep -o 'text="[^"]*[Aa][Dd][Dd][^"]*"[^>]*bounds="[^"]*"' pin.xml | grep -iv "home screen\"" | tail -1 | grep -o 'bounds="[^"]*"')
+  [ -z "$b" ] && b=$(grep -o 'text="[^"]*[Aa][Dd][Dd][^"]*"[^>]*bounds="[^"]*"' pin.xml | tail -1 | grep -o 'bounds="[^"]*"')
+  if [ -n "$b" ]; then
+    read -r x1 y1 x2 y2 <<< "$(echo "$b" | grep -o '[0-9]*' | tr '\n' ' ')"; adb shell input tap $(( (x1 + x2) / 2 )) $(( (y1 + y2) / 2 )); sleep 3
+  fi
+  adb logcat -c
+  adb shell input keyevent HOME; sleep 2; adb shell input swipe 300 900 700 900 200; sleep 1; adb shell input keyevent HOME; sleep 8
+  shot home-live
+  live=$(adb shell dumpsys accessibility | grep -c LiveService)
+  seat=$(adb logcat -d -s Nodo:I | grep "seats:" | tail -1)
+  case "$seat" in
+    *"placed by Fold Widgets"*) note "Seat from live mode: ${seat#*seats: }" ;;
+    *) note "::warning::Nodo's widget was not placed by live mode (pin dialog: ${b:-not found}, live mode in accessibility: $live)" ;;
+  esac
+  adb shell settings delete secure enabled_accessibility_services >/dev/null 2>&1
+  adb shell pm uninstall $FW >/dev/null 2>&1
 fi
 
 adb logcat -d > app-log.txt

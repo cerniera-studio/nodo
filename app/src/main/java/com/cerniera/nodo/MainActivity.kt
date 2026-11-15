@@ -122,6 +122,9 @@ class MainActivity : Activity(), ThreadView.Listener {
                 id >= 0 -> knots.firstOrNull { it.id == id }?.let { tapped(it) }
                 i.getStringExtra("open") == "settings" -> settings()
                 i.getStringExtra("open") == "widget" -> widgetSheet()
+                // Test only: ask the launcher to place the widget, as "Add to home screen" does
+                i.getStringExtra("open") == "pin" -> getSystemService(android.appwidget.AppWidgetManager::class.java)
+                    ?.requestPinAppWidget(android.content.ComponentName(this, NodoWidget::class.java), null, null)
                 i.getStringExtra("open") == "next" -> knots.filter { it.done == null }.minByOrNull { it.due }?.let { tapped(it) }
             }
         }
@@ -454,7 +457,7 @@ class MainActivity : Activity(), ThreadView.Listener {
 
         val seeing = com.cerniera.kit.Backdrop.canReadWallpaper()
         into.addView(Card(ctx).apply {
-            row(Row(ctx, "See the wallpaper", if (seeing) "The glass finishes show the wallpaper behind the widget, once it has been tapped." else
+            row(Row(ctx, "See the wallpaper", if (seeing) "The finishes read the wallpaper behind the widget: where Fold Widgets' live mode sees it, or from your first tap." else
                 "Vetro and Cristallo show the wallpaper itself only with all-files access, as in Fold Widgets. Without it they take its colours.",
                 endValue(if (seeing) "Allowed" else "Allow", if (seeing) Kit.MUTED else Kit.CHAMPAGNE)) {
                 if (!seeing) startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))

@@ -1,9 +1,11 @@
 package com.cerniera.nodo
 
+import android.appwidget.AppWidgetManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import com.cerniera.kit.Backdrop
 import com.cerniera.kit.Finish
 
 /**
@@ -70,7 +72,73 @@ object Look {
     }
 }
 
-/** Fold Widgets says its look, or the wallpaper, changed: redraw the widget to match. */
+/**
+ * Where Nodo's widgets sit, as Fold Widgets' live mode sees them (15 Nov 2026).
+ *
+ * The adaptive finishes read what is behind each widget, zone by zone; a launcher never tells a
+ * widget where it sits, so on its own Nodo's widget learns it from a tap and until then wears the
+ * wallpaper's overall colour. That left it reading a different ground from the Fold widgets beside
+ * it. Fold Widgets' live mode sees the whole home screen, Nodo's widget included, so it passes on
+ * where it sits, to the pixel, and where the launcher has the wallpaper and how it tints it. With
+ * those, Nodo cuts its ground from exactly the slice of wallpaper the Fold widgets would.
+ */
+object Seats {
+    private fun p(c: Context) = Store.store(c)
+
+    private class Seen(val left: Float, val top: Float, val width: Float, val height: Float, val screenW: Int, val screenH: Int, val live: Backdrop.LiveView?)
+
+    /** The launcher's placing and tint for widget [id], when live mode saw them. */
+    fun live(c: Context, id: Int): Backdrop.LiveView? = runCatching {
+        val v = p(c).getString("live_$id", null)!!.split(",")
+        Backdrop.LiveView(v[0].toFloat(), v[1].toFloat(), floatArrayOf(v[2].toFloat(), v[3].toFloat(), v[4].toFloat()), v[5].toInt(), v[6].toInt())
+    }.getOrNull()
+
+    /**
+     * Takes up what Fold Widgets last saw of Nodo's widgets, if it is new: each widget seen is
+     * matched to the Nodo widget nearest its last known place, or else closest in size.
+     */
+    fun take(c: Context, m: AppWidgetManager, ids: IntArray, sizesDp: (Int) -> List<android.util.SizeF>) {
+        if (ids.isEmpty() || !Look.foldWidgets(c)) return
+        val seen = ArrayList<Seen>(); var at = 0L
+        runCatching {
+            c.contentResolver.query(android.net.Uri.parse("content://${Look.AUTHORITY}/seats"), null, null, null, null)?.use { cur ->
+                fun f(n: String) = cur.getFloat(cur.getColumnIndexOrThrow(n))
+                fun i(n: String) = cur.getInt(cur.getColumnIndexOrThrow(n))
+                while (cur.moveToNext()) {
+                    val sw = i("screen_w"); val sh = i("screen_h")
+                    val live = if (i("live") == 1) Backdrop.LiveView(f("ox"), f("oy"), floatArrayOf(f("gain_r"), f("gain_g"), f("gain_b")), sw, sh) else null
+                    seen += Seen(f("left"), f("top"), f("width"), f("height"), sw, sh, live)
+                    at = cur.getLong(cur.getColumnIndexOrThrow("at"))
+                }
+            }
+        }.onFailure { android.util.Log.w("Nodo", "seats: Fold Widgets not read", it) }
+        if (seen.isEmpty() || p(c).getLong("seatsAt", 0L) == at) return
+        val screen = Backdrop.screenSize(c)
+        val here = seen.filter { it.screenW == screen.x && it.screenH == screen.y }
+        // Seen on the other screen: kept for when the phone is folded or opened again
+        if (here.isEmpty()) return
+        val store = p(c); val d = Backdrop.density(c)
+        val claimed = HashSet<Int>(); val e = store.edit(); var placed = 0
+        for (s in here) {
+            fun distance(id: Int): Float {
+                val old = Backdrop.seat(store, id)
+                if (old != null && old.screenW == s.screenW && old.screenH == s.screenH)
+                    return Math.abs(old.left - s.left) + Math.abs(old.top - s.top) + 3f * (Math.abs(old.width - s.width) + Math.abs(old.height - s.height))
+                return 400f + 3f * (sizesDp(id).minOfOrNull { Math.abs(it.width * d - s.width) + Math.abs(it.height * d - s.height) } ?: 400f)
+            }
+            val id = ids.filter { it !in claimed }.minByOrNull { distance(it) } ?: break
+            claimed += id
+            e.putString("seat_$id", Backdrop.Seat(s.left, s.top, s.width, s.height, s.screenW, s.screenH, true).encode())
+            s.live?.let { e.putString("live_$id", listOf(it.ox, it.oy, it.gain!![0], it.gain[1], it.gain[2], it.screenW, it.screenH).joinToString(",")) } ?: e.remove("live_$id")
+            placed++
+        }
+        e.putLong("seatsAt", at).apply()
+        android.util.Log.i("Nodo", "seats: $placed of ${seen.size} placed by Fold Widgets' live mode" +
+            if (here.any { it.live != null }) ", wallpaper placed and tinted" else ", wallpaper as centred")
+    }
+}
+
+/** Fold Widgets says its look, the wallpaper, or where Nodo's widgets sit changed: redraw to match. */
 class LookReceiver : BroadcastReceiver() {
     override fun onReceive(c: Context, i: Intent) { if (i.action == Look.CHANGED) NodoWidget.refresh(c) }
 }

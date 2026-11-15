@@ -3,6 +3,11 @@ name: Build APK
 on:
   push:
   workflow_dispatch:
+    inputs:
+      fold_widgets:
+        description: Fold Widgets release to test beside (a build-N tag); the latest by default
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -80,7 +85,7 @@ jobs:
           target: google_apis
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
-          script: bash tools/emulator_test.sh
+          script: FW_TAG='${{ github.event.inputs.fold_widgets }}' bash tools/emulator_test.sh
 
       - uses: actions/upload-artifact@v4
         if: always()

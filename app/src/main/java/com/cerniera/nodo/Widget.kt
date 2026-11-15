@@ -43,13 +43,17 @@ import kotlin.math.sqrt
  * radius 24; Jost in Fold Widgets' roles (label 11/600 tracked, primary 14.5/600, meta 12.5/500,
  * one Italiana figure). The finishes are Fold Widgets' own, from the Kit (14 Nov 2026): all ten,
  * adapting to the wallpaper behind the widget the same way, the glass ones seeing through it when
- * Nodo may read the wallpaper image. Like Fold Widgets', the widget learns where it sits from taps.
+ * Nodo may read the wallpaper image. Like Fold Widgets', the widget learns where it sits from taps,
+ * and (15 Nov 2026) from Fold Widgets' live mode, which sees it on the home screen like its own.
  *
  * Widgets can't animate, be dragged or take long presses: the knot's Done is a tap, everything
  * else opens Nodo at that knot.
  */
 class NodoWidget : AppWidgetProvider() {
-    override fun onUpdate(c: Context, m: AppWidgetManager, ids: IntArray) { ids.forEach { draw(c, m, it) } }
+    override fun onUpdate(c: Context, m: AppWidgetManager, ids: IntArray) {
+        Seats.take(c, m, all(c, m)) { sizes(m, it) }
+        ids.forEach { draw(c, m, it) }
+    }
     override fun onAppWidgetOptionsChanged(c: Context, m: AppWidgetManager, id: Int, o: Bundle) = draw(c, m, id)
 
     companion object {
@@ -60,8 +64,14 @@ class NodoWidget : AppWidgetProvider() {
             val m = AppWidgetManager.getInstance(c) ?: return
             // The wallpaper may have changed since it was last read
             Backdrop.invalidate()
-            runCatching { m.getAppWidgetIds(ComponentName(c, NodoWidget::class.java)).forEach { draw(c, m, it) } }
+            val ids = all(c, m)
+            // Where Fold Widgets' live mode last saw them, if it has seen them somewhere new
+            Seats.take(c, m, ids) { sizes(m, it) }
+            ids.forEach { draw(c, m, it) }
         }
+
+        private fun all(c: Context, m: AppWidgetManager): IntArray =
+            runCatching { m.getAppWidgetIds(ComponentName(c, NodoWidget::class.java)) }.getOrNull() ?: IntArray(0)
 
         /** The sizes the launcher shows this widget at (one per orientation), in dp. */
         private fun sizes(m: AppWidgetManager, id: Int): List<SizeF> {
@@ -82,7 +92,7 @@ class NodoWidget : AppWidgetProvider() {
             val look = Look.read(c)
             val finish = look.finish
             // What lies behind this widget: the slice of wallpaper at its seat, or the wallpaper's colours
-            val ground = Backdrop.ground(c, Store.store(c), id)
+            val ground = Backdrop.ground(c, Store.store(c), id, Seats.live(c, id))
             val map = LinkedHashMap<SizeF, RemoteViews>()
             for ((index, s) in sizes(m, id).withIndex()) {
                 val pic = Painter.draw(c, s.width, s.height, d, finish, ground, knots, now, look.radius.toFloat())
