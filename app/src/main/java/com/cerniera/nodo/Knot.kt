@@ -19,11 +19,25 @@ class Knot(
     var repeat: String = NONE,
     /** Tied but not yet named: a new knot waiting for its words. Never stored. */
     var pending: Boolean = false,
+    /**
+     * Fluido (18 Nov 2026): a knot that waits for a moment rather than a time. [HOME] ("when I'm
+     * home"), or "app:<package>|<name>" ("when I open Spotify"). It unties itself when that moment
+     * comes, and becomes an ordinary knot at now. Null: a knot in time.
+     */
+    var cue: String? = null,
 ) {
     val open get() = done == null
-    fun late(now: Long) = done == null && due < now
+    val waiting get() = done == null && cue != null
+    fun late(now: Long) = done == null && cue == null && due < now
 
     companion object {
+        const val HOME = "home"
+        fun app(pkg: String, name: String) = "app:$pkg|$name"
+        /** The package an app cue waits for, or null. */
+        fun appOf(cue: String?) = cue?.takeIf { it.startsWith("app:") }?.removePrefix("app:")?.substringBefore('|')
+        /** "When you're home", "When you open Spotify". */
+        fun cueLine(cue: String) = if (cue == HOME) "When you're home" else "When you open " + cue.substringAfter('|')
+
         const val NONE = "none"
         const val DAILY = "daily"
         const val WEEKDAYS = "weekdays"

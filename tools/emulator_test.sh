@@ -92,6 +92,19 @@ sleep 75
 adb shell cmd statusbar expand-notifications; sleep 2; shot notification
 adb shell dumpsys notification --noredact > notes.txt
 grep -q "Test knot from the emulator" notes.txt && note "Reminder arrived as a notification" || note "::error::the reminder did not arrive"
+
+# Fluido: a knot that waits for home, then the moment (as Wi-Fi reaching home would send it)
+adb shell cmd statusbar collapse; sleep 1
+adb shell am force-stop $PKG
+adb shell am start -n $PKG/.MainActivity --es add "'when I am home, water the plants'"; sleep 4; shot waiting-home
+adb shell am start -n $PKG/.MainActivity --es open next; sleep 3; shot waiting-home-detail
+adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell am broadcast -a com.cerniera.nodo.CUE -p $PKG --es place home; sleep 4
+adb shell dumpsys notification --noredact > notes-home.txt
+grep -q "Water the plants" notes-home.txt && note "Home knot untied by the moment" || note "::error::the home knot was not untied"
+adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity; sleep 4; shot after-home
+adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4
+for i in 1 2; do adb shell input swipe 540 1700 540 500 300; sleep 1; done; shot settings-moments
 adb shell cmd statusbar collapse
 adb shell wm size reset; adb shell wm density reset
 

@@ -37,7 +37,8 @@ object Reminders {
         val am = c.getSystemService(AlarmManager::class.java) ?: return
         val prefs = c.getSharedPreferences("nodo", Context.MODE_PRIVATE)
         val now = System.currentTimeMillis()
-        val want = knots.filter { !it.pending && it.done == null && it.due > now }
+        // A knot waiting for a moment has no alarm: the moment unties it (Cues.kt)
+        val want = knots.filter { !it.pending && it.done == null && it.cue == null && it.due > now }
         val was = prefs.getStringSet("armed", emptySet())!!.mapNotNull { it.toIntOrNull() }.toSet()
         (was - want.map { it.id }.toSet()).forEach { id -> pending(c, id, PendingIntent.FLAG_NO_CREATE)?.let { am.cancel(it); it.cancel() } }
         val exact = canExact(c)
@@ -55,7 +56,7 @@ object Reminders {
     fun arm(c: Context) = arm(c, Store.load(c))
 
     /** The notification for a knot that has reached now. */
-    fun notify(c: Context, k: Knot) {
+    fun notify(c: Context, k: Knot, cueWhy: String? = null) {
         channel(c)
         val nm = c.getSystemService(NotificationManager::class.java) ?: return
         fun action(label: String, what: String, mins: Int = 0): Notification.Action {
@@ -70,7 +71,7 @@ object Reminders {
             .setSmallIcon(R.drawable.ic_stat)
             .setColor(Kit.Fixed.CHAMPAGNE)
             .setContentTitle(k.text)
-            .setContentText(if (k.weight == 3) "Tight knot · now" else "Now · " + Words.hm(k.due))
+            .setContentText(when { cueWhy != null -> cueWhy; k.weight == 3 -> "Tight knot · now"; else -> "Now · " + Words.hm(k.due) })
             .setCategory(Notification.CATEGORY_REMINDER)
             .setWhen(k.due).setShowWhen(true)
             .setContentIntent(open)
@@ -119,5 +120,5 @@ class ActionReceiver : BroadcastReceiver() {
 
 /** Alarms don't survive a restart, a clock change or an update: set them again. */
 class BootReceiver : BroadcastReceiver() {
-    override fun onReceive(c: Context, i: Intent) { Reminders.arm(c); NodoWidget.refresh(c) }
+    override fun onReceive(c: Context, i: Intent) { Reminders.arm(c); NodoWidget.refresh(c); Cues.watch(c) }
 }

@@ -12,9 +12,21 @@
     <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
+    <!-- Fluido: knots that wait for home. Nodo knows home by its Wi-Fi, and Android shows a Wi-Fi
+         network's name only to apps with location permission: asked for only when home is set -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
     <!-- Fold Widgets' look (finish, corners, glass images), which the widget follows -->
     <queries>
         <provider android:authorities="com.fergusonconsultancy.foldwidgets.look" />
+        <!-- "When I open Spotify": finding the app by the name typed -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
     </queries>
 
     <application
@@ -40,6 +52,16 @@
         </activity>
 
         <receiver android:name=".ReminderReceiver" android:exported="false" />
+
+        <!-- Fluido: moments that untie knots (Wi-Fi reaching home; Fold Taskbar saying an app opened) -->
+        <receiver android:name=".CueReceiver" android:exported="true">
+            <intent-filter><action android:name="com.cerniera.nodo.CUE" /></intent-filter>
+        </receiver>
+        <!-- Which apps knots are waiting for (packages only, never the words), for Fold Taskbar -->
+        <provider
+            android:name=".CueProvider"
+            android:authorities="com.cerniera.nodo.cues"
+            android:exported="true" />
         <receiver android:name=".ActionReceiver" android:exported="false" />
         <!-- The thread on the home screen -->
         <receiver android:name=".NodoWidget" android:exported="true" android:label="Nodo · Thread">

@@ -38,4 +38,39 @@ class WordsTest {
         assertEquals("Tomorrow 09:00", Words.whenLine(Knot(1, "x", at(2026, 11, 15, 9, 0)), now, z))
         assertEquals("2 h overdue", Words.whenLine(Knot(1, "x", now - 2 * HOUR - 10 * MIN), now, z))
     }
+
+    // ---- Fluido: moments in the words --------------------------------------------------------
+
+    @Test fun whenImHome() {
+        val c = Words.cue("when I'm home, water the plants")
+        assertEquals(true, c.home); assertEquals("Water the plants", c.text)
+    }
+
+    @Test fun homeAtTheEnd() {
+        val c = Words.cue("Water the plants when I get home")
+        assertEquals(true, c.home); assertEquals("Water the plants", c.text)
+    }
+
+    @Test fun whenIGetIn() {
+        assertEquals(true, Words.cue("Put the bins out when I get in").home)
+    }
+
+    @Test fun nextTimeIOpenAnApp() {
+        val c = Words.cue("next time I open Spotify add the new album")
+        assertEquals(false, c.home); assertEquals("Spotify", c.app); assertEquals("Add the new album", c.text)
+    }
+
+    @Test fun whenImInAnApp() {
+        val c = Words.cue("Reply to Sam when I'm in WhatsApp")
+        assertEquals("WhatsApp", c.app); assertEquals("Reply to Sam", c.text)
+    }
+
+    @Test fun noMomentLeavesTheWords() {
+        val c = Words.cue("Friday 9 call the bank")
+        assertEquals(false, c.home); assertEquals(null, c.app); assertEquals("Friday 9 call the bank", c.text)
+    }
+
+    @Test fun workingAtHomeIsNotAMoment() {
+        assertEquals(false, Words.cue("Work at home tomorrow").home)
+    }
 }
