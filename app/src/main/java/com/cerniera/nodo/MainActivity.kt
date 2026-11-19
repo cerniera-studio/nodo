@@ -163,7 +163,6 @@ class MainActivity : Activity(), ThreadView.Listener {
         root.post {
             when {
                 // Tying a knot: the field follows its knot to the thread's new place, text and all
-                tieField != null -> { val f = tieField; val k = tieKnot; if (f != null && k != null) f.layoutParams = tiePlace(k) }
                 thread.lowerHalfFree() -> (open?.let { id -> knots.firstOrNull { it.id == id } } ?: next())?.let { showDetail(it) }
                 open != null && panelTransient -> knots.firstOrNull { it.id == open }?.let { showDetail(it) } ?: closeDetail()
                 else -> closeDetail()
@@ -260,7 +259,7 @@ class MainActivity : Activity(), ThreadView.Listener {
             isClickable = true
         }
         fill(body, k)
-        carry?.let { (t, at) -> whatField?.apply { setText(t); requestFocus(); setSelection(at.coerceIn(0, t.length)) } }
+        // PROOF ONLY: the edit is not carried over
         val maxH = (root.height * (if (thread.shape == ThreadView.Shape.COVER_P) 0.72f else 1f)).toInt()
         val scroll = object : ScrollView(this) {
             override fun onMeasure(w: Int, h: Int) = super.onMeasure(w, MeasureSpec.makeMeasureSpec(maxOf(px(120), maxH - px(32) - insets[1] - insets[3]), MeasureSpec.AT_MOST))
