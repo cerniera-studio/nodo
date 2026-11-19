@@ -22,7 +22,11 @@ import android.net.wifi.WifiManager
  *  - **Home.** Nodo learns home as a Wi-Fi network, once, when you say "I'm home now" in its
  *    settings. After that the phone tells Nodo whenever Wi-Fi connects (a network request with a
  *    pending intent, so nothing runs in between), and if it is home's, the home knots come due.
- *    Reading a Wi-Fi network's name needs location permission; Nodo asks only when you set home.
+ *    Android shows a Wi-Fi network's name only with location permission, and to an app that's
+ *    closed only with location "Allow all the time" (19 Nov 2026: chosen for usability; nothing
+ *    is tracked, Nodo only reads the network's name when Wi-Fi connects).
+ *  - **The backup.** Opening Nodo on home's Wi-Fi unties the home knots that were tied away from
+ *    home, in case the phone didn't wake Nodo. Knots tied at home wait for the next arrival.
  *  - **An app.** The family's apps that can see the app in front (Fold Taskbar) ask Nodo which
  *    apps knots are waiting for ([CueProvider]) and tell it when one opens ([CueReceiver]).
  *
@@ -50,12 +54,13 @@ object Cues {
      * A moment has come: [what] is "home" or "app:<package>". Every open knot waiting for it is
      * notified and moved to now. Returns how many.
      */
-    fun fire(c: Context, what: String): Int {
+    fun fire(c: Context, what: String, only: Set<Int>? = null): Int {
         val knots = Store.load(c)
         val now = System.currentTimeMillis()
         val due = knots.filter { k ->
             val cue = k.cue
-            k.done == null && cue != null && (cue == what || (what.startsWith("app:") && Knot.appOf(cue) == what.removePrefix("app:")))
+            k.done == null && cue != null && (only == null || k.id in only) &&
+                (cue == what || (what.startsWith("app:") && Knot.appOf(cue) == what.removePrefix("app:")))
         }
         if (due.isEmpty()) return 0
         due.forEach { k ->
@@ -78,6 +83,50 @@ object Cues {
     fun lastWifi(c: Context): String = prefs(c).getString("wifi_note", "").orEmpty()
 
     fun canReadWifi(c: Context) = c.checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    /** Location "Allow all the time": what lets Nodo read the Wi-Fi's name while it is closed. */
+    fun canReadInBackground(c: Context) = canReadWifi(c) && c.checkSelfPermission(Manifest.permission.ACCESS_BACKGROUND_LOCATION) == PackageManager.PERMISSION_GRANTED
+
+    fun locationOn(c: Context) = runCatching { c.getSystemService(android.location.LocationManager::class.java)?.isLocationEnabled ?: true }.getOrDefault(true)
+    @Suppress("DEPRECATION")
+    fun wifiOn(c: Context) = runCatching { c.applicationContext.getSystemService(WifiManager::class.java)?.isWifiEnabled ?: true }.getOrDefault(true)
+
+    /** What stops home being noticed right now, in a few words, or null when all is well. */
+    enum class Problem { NO_PERMISSION, NOT_ALWAYS, LOCATION_OFF, WIFI_OFF }
+
+    fun problem(c: Context): Problem? = when {
+        homeNetwork(c) == null -> null
+        !canReadWifi(c) -> Problem.NO_PERMISSION
+        !canReadInBackground(c) -> Problem.NOT_ALWAYS
+        !locationOn(c) -> Problem.LOCATION_OFF
+        !wifiOn(c) -> Problem.WIFI_OFF
+        else -> null
+    }
+
+    // ---- The backup: knots tied away from home, untied when Nodo opens at home -----------------
+
+    private fun ids(c: Context, key: String) = prefs(c).getStringSet(key, emptySet())!!.mapNotNull { it.toIntOrNull() }.toSet()
+    private fun putIds(c: Context, key: String, v: Set<Int>) = prefs(c).edit().putStringSet(key, v.map { it.toString() }.toSet()).apply()
+
+    /** Notes, for each new home knot, whether it was tied away from home. Called on every save. */
+    fun classify(c: Context, knots: List<Knot>) {
+        val home = knots.filter { it.done == null && it.cue == Knot.HOME }.map { it.id }.toSet()
+        val known = ids(c, "home_known"); val away = ids(c, "home_away")
+        val fresh = home - known
+        if (fresh.isEmpty() && known.all { it in home } && away.all { it in home }) return
+        val atHome = homeNetwork(c)?.let { it == currentWifi(c) } ?: false
+        putIds(c, "home_known", known.intersect(home) + fresh)
+        putIds(c, "home_away", away.intersect(home) + if (atHome) emptySet() else fresh)
+    }
+
+    /** Nodo opened: if this is home's Wi-Fi, the knots tied away from home come due. Returns how many. */
+    fun checkHere(c: Context): Int {
+        val home = homeNetwork(c) ?: return 0
+        if (!canReadWifi(c) || currentWifi(c) != home) return 0
+        val away = ids(c, "home_away")
+        if (away.isEmpty()) return 0
+        return fire(c, Knot.HOME, only = away)
+    }
 
     /** The Wi-Fi network the phone is on now, by name, or null (not on Wi-Fi, or its name is hidden from Nodo). */
     @Suppress("DEPRECATION")

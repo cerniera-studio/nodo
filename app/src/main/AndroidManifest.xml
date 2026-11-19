@@ -13,9 +13,11 @@
         tools:ignore="ScopedStorage" />
 
     <!-- Fluido: knots that wait for home. Nodo knows home by its Wi-Fi, and Android shows a Wi-Fi
-         network's name only to apps with location permission: asked for only when home is set -->
+         network's name only to apps with location permission: asked for when home is set -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <!-- "Allow all the time": Nodo reads the Wi-Fi's name when Wi-Fi connects while it's closed -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 

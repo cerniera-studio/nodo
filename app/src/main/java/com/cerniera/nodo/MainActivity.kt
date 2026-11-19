@@ -144,6 +144,12 @@ class MainActivity : Activity(), ThreadView.Listener {
         if (tieField == null) { knots = Store.load(this); thread.knots = knots; open?.let { id -> knots.firstOrNull { it.id == id }?.let { showDetail(it) } ?: closeDetail() } }
         Reminders.arm(this, knots)
         permits()
+        // The backup for home: opened on home's Wi-Fi, knots tied away from home come due
+        Thread {
+            if (Cues.checkHere(applicationContext) > 0) runOnUiThread {
+                if (tieField == null) { knots = Store.load(this); thread.knots = knots; thread.invalidate() }
+            }
+        }.start()
         root.post { if (thread.lowerHalfFree() && open == null) showNext() }
     }
 
@@ -362,6 +368,9 @@ class MainActivity : Activity(), ThreadView.Listener {
 
     private var settingsSheet: Sheet? = null
     private val ASK_HOME = 41
+    private val ASK_ALWAYS = 42
+    /** Location given back after it was turned off for Nodo: then "Allow all the time" too. */
+    private val ASK_FINE = 43
 
     /**
      * The words without their moment, and the moment as a cue: home, or an installed app found by
@@ -404,13 +413,23 @@ class MainActivity : Activity(), ThreadView.Listener {
             s.body.addView(Card(ctx).apply {
                 val home = Cues.homeNetwork(ctx)
                 val waitingHome = knots.count { it.waiting && it.cue == Knot.HOME }
-                val homeNote = if (home == null) "Type \"when I'm home, water the plants\" and the knot waits for home. Set home while you're on its Wi-Fi; Android asks for location so Nodo can read the network's name."
+                val homeNote = if (home == null) "Type \"when I'm home, water the plants\" and the knot waits for home. Set home while you're on its Wi-Fi. Android asks for location, then for \"Allow all the time\", so Nodo can read the network's name while it's closed."
                     else "Home is the Wi-Fi \"$home\"." + (if (waitingHome > 0) " $waitingHome waiting." else "") + Cues.lastWifi(ctx).let { if (it.isEmpty()) "" else " Last Wi-Fi: $it." }
                 row(Row(ctx, "Home", homeNote, endValue(if (home == null) "I'm home now" else "Forget", if (home == null) Kit.CHAMPAGNE else Kit.MUTED)) {
                     if (home != null) { Cues.forgetHome(ctx); settingsSheet?.dismiss(); settings() }
                     else if (!Cues.canReadWifi(ctx)) requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), ASK_HOME)
                     else setHomeNow()
                 })
+                // What stops home being noticed, said plainly, with the one tap that fixes it
+                Cues.problem(ctx)?.let { p ->
+                    val (title, note, action) = when (p) {
+                        Cues.Problem.NO_PERMISSION -> Triple("Location is off for Nodo", "Nodo can't read the Wi-Fi's name, so it can't tell you're home.", "Allow")
+                        Cues.Problem.NOT_ALWAYS -> Triple("Only while Nodo is open", "Choose \"Allow all the time\" so Nodo notices home while it's closed. It only reads the Wi-Fi's name when Wi-Fi connects; nothing is tracked.", "Allow")
+                        Cues.Problem.LOCATION_OFF -> Triple("Location is off", "Android hides Wi-Fi names while location is off, so home can't be noticed.", "Turn on")
+                        Cues.Problem.WIFI_OFF -> Triple("Wi-Fi is off", "Home is noticed when the phone joins its Wi-Fi.", "Turn on")
+                    }
+                    row(Row(ctx, title, note, endValue(action, Kit.CHAMPAGNE)) { fixHome(p) })
+                }
                 val apps = knots.filter { it.waiting }.mapNotNull { k -> k.cue?.takeIf { it.startsWith("app:") }?.substringAfter('|') }.distinct()
                 row(Row(ctx, "Apps", if (apps.isEmpty()) "Type \"next time I open Spotify, add the album\" and the knot waits for that app. Fold Taskbar tells Nodo when it opens."
                     else "Waiting for " + apps.joinToString(", ") + ". Fold Taskbar tells Nodo when one opens.", null))
@@ -611,12 +630,31 @@ class MainActivity : Activity(), ThreadView.Listener {
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults); permits()
         if (requestCode == ASK_HOME && Cues.canReadWifi(this)) setHomeNow()
+        if (requestCode == ASK_FINE) { if (Cues.canReadWifi(this) && !Cues.canReadInBackground(this)) askAlways() else { settingsSheet?.dismiss(); settings() } }
+        if (requestCode == ASK_ALWAYS) {
+            // Refused (or asked too often): Android no longer offers it here, so open Nodo's own page
+            if (!Cues.canReadInBackground(this) && !shouldShowRequestPermissionRationale(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION)) appSettings()
+            settingsSheet?.dismiss(); settings()
+        }
     }
 
     private fun setHomeNow() {
         val name = Cues.setHome(this)
         android.widget.Toast.makeText(this, if (name != null) "Home is \"$name\"" else "Couldn't read this Wi-Fi's name. Check Wi-Fi and location are on.", android.widget.Toast.LENGTH_LONG).show()
-        settingsSheet?.dismiss(); settings()
+        // Step two: "Allow all the time", which Android shows on its own page
+        if (name != null && !Cues.canReadInBackground(this)) askAlways()
+        else { settingsSheet?.dismiss(); settings() }
+    }
+
+    private fun askAlways() = requestPermissions(arrayOf(android.Manifest.permission.ACCESS_BACKGROUND_LOCATION), ASK_ALWAYS)
+
+    private fun appSettings() = startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+
+    private fun fixHome(p: Cues.Problem) = when (p) {
+        Cues.Problem.NO_PERMISSION -> requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), ASK_FINE)
+        Cues.Problem.NOT_ALWAYS -> askAlways()
+        Cues.Problem.LOCATION_OFF -> startActivity(Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS))
+        Cues.Problem.WIFI_OFF -> startActivity(Intent(Settings.Panel.ACTION_WIFI))
     }
 
     // ---- For the shapes test: where the parts that must be in view ended up -------------------
