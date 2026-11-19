@@ -38,6 +38,7 @@ object Store {
         NodoWidget.refresh(c)
         // Knots waiting for a moment: watch Wi-Fi for home, and tell Fold Taskbar which apps matter
         Cues.watch(c)
+        Cues.classify(c, knots)
         runCatching { c.contentResolver.notifyChange(CueProvider.URI, null) }
     }
 
