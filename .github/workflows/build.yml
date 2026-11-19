@@ -110,7 +110,9 @@ jobs:
             shapes.txt
             walk.txt
             pin-dialog.xml
+            windows.txt
             app-log.txt
+            app-log-windows.txt
 
       - name: Attach screenshots to the release
         if: always()
@@ -123,4 +125,6 @@ jobs:
             shapes.txt
             walk.txt
             pin-dialog.xml
+            windows.txt
             app-log.txt
+            app-log-windows.txt

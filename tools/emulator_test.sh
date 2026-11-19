@@ -166,3 +166,7 @@ adb logcat -d > app-log.txt
 if crashed; then echo "::error::Nodo crashed"; grep -A20 "FATAL EXCEPTION" app-log.txt | head -40; exit 1; fi
 grep "::error::" walk.txt shapes.txt && exit 1
 echo "No crash"
+
+# Pop-up windows, resizing and continuity (19 Nov 2026). It reboots the emulator to turn pop-up
+# windows on, so it runs last, with its own log and crash check.
+bash tools/windows.sh || exit 1
