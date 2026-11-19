@@ -111,7 +111,8 @@ else
   # The emulator's keyboard can garble what adb types, so don't look for the exact word: the edit
   # survived if the field still holds more than the saved words. The old bug put the saved words back.
   orig=${f%%|*}
-  if [ -n "$after" ] && [ "$after" != "$orig" ] && [ "${after#"$orig"}" != "$after" ]; then
+  # (The cursor lands where the test tapped, so the typing can land mid-word: only the length counts)
+  if [ -n "$after" ] && [ "$after" != "$orig" ] && [ ${#after} -gt ${#orig} ]; then
     note "Editing a knot: the words being typed survived the turn ('$after')"
   else
     fail "Editing a knot: the words being typed were lost on the turn ('$orig' became '${after:-no field}')"
