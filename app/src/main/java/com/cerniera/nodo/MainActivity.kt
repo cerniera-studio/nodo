@@ -59,6 +59,8 @@ class MainActivity : Activity(), ThreadView.Listener {
     private lateinit var permit: TextView
     private var knots: MutableList<Knot> = mutableListOf()
     private var open: Int? = null
+    /** The open knot's text field, so an edit in progress survives the panel being rebuilt. */
+    private var whatField: EditText? = null
     private var tieField: EditText? = null
     private var tieKnot: Knot? = null
     private var insets = intArrayOf(0, 0, 0, 0)
@@ -160,6 +162,8 @@ class MainActivity : Activity(), ThreadView.Listener {
         // Folding or turning: the thread lays itself out again, and the detail follows it
         root.post {
             when {
+                // Tying a knot: the field follows its knot to the thread's new place, text and all
+                tieField != null -> { val f = tieField; val k = tieKnot; if (f != null && k != null) f.layoutParams = tiePlace(k) }
                 thread.lowerHalfFree() -> (open?.let { id -> knots.firstOrNull { it.id == id } } ?: next())?.let { showDetail(it) }
                 open != null && panelTransient -> knots.firstOrNull { it.id == open }?.let { showDetail(it) } ?: closeDetail()
                 else -> closeDetail()
@@ -201,14 +205,19 @@ class MainActivity : Activity(), ThreadView.Listener {
             setOnEditorActionListener { _, action, ev -> if (action == EditorInfo.IME_ACTION_DONE || ev?.keyCode == KeyEvent.KEYCODE_ENTER) { endTie(); true } else false }
         }
         tieField = f
+        root.addView(f, tiePlace(k))
+        f.requestFocus()
+        f.postDelayed({ getSystemService(InputMethodManager::class.java)?.showSoftInput(f, 0) }, 60)
+    }
+
+    /** Where the tie field sits: beside its knot, wherever the thread now runs. */
+    private fun tiePlace(k: Knot): FrameLayout.LayoutParams {
         val p = thread.at(k)
         val fw = px(240)
         val lp = FrameLayout.LayoutParams(fw, -2)
         if (thread.orientationHorizontal()) { lp.leftMargin = (p.x - fw / 2).toInt().coerceIn(px(12), root.width - fw - px(12)); lp.topMargin = (p.y + px(34)).toInt() }
         else { lp.leftMargin = (p.x + px(22)).toInt().coerceAtMost(root.width - fw - px(12)); lp.topMargin = (p.y - px(18)).toInt() }
-        root.addView(f, lp)
-        f.requestFocus()
-        f.postDelayed({ getSystemService(InputMethodManager::class.java)?.showSoftInput(f, 0) }, 60)
+        return lp
     }
 
     override fun endTie() {
@@ -240,6 +249,8 @@ class MainActivity : Activity(), ThreadView.Listener {
 
     private fun showDetail(k: Knot) {
         if (tieField != null) endTie()
+        // Turning or folding rebuilds the panel: keep what was being typed into this knot
+        val carry = whatField?.takeIf { open == k.id && it.hasFocus() }?.let { it.text.toString() to it.selectionEnd }
         open = k.id; thread.selected = k.id
         panel.removeAllViews()
         val body = LinearLayout(this).apply {
@@ -249,6 +260,7 @@ class MainActivity : Activity(), ThreadView.Listener {
             isClickable = true
         }
         fill(body, k)
+        carry?.let { (t, at) -> whatField?.apply { setText(t); requestFocus(); setSelection(at.coerceIn(0, t.length)) } }
         val maxH = (root.height * (if (thread.shape == ThreadView.Shape.COVER_P) 0.72f else 1f)).toInt()
         val scroll = object : ScrollView(this) {
             override fun onMeasure(w: Int, h: Int) = super.onMeasure(w, MeasureSpec.makeMeasureSpec(maxOf(px(120), maxH - px(32) - insets[1] - insets[3]), MeasureSpec.AT_MOST))
@@ -295,6 +307,7 @@ class MainActivity : Activity(), ThreadView.Listener {
     private fun fill(body: LinearLayout, k: Knot) {
         val now = System.currentTimeMillis()
         val what = EditText(this).apply {
+            whatField = this
             setText(k.text); textSize = 20f; setTextColor(Kit.Fixed.IVORY); typeface = Kit.sans(context, 400)
             background = null; setPadding(0, px(2), 0, px(6)); isSingleLine = true
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES; imeOptions = EditorInfo.IME_ACTION_DONE
