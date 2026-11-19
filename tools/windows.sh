@@ -108,10 +108,14 @@ else
   adb shell settings put system user_rotation 1; sleep 4; shot edit-turned
   after=$(what); after=${after%%|*}
   echo "edit: '${f%%|*}' -> '$after'" | tee -a $out
-  case "$after" in
-    *edited*) note "Editing a knot: the words being typed survived the turn ('$after')" ;;
-    *) fail "Editing a knot: the words being typed were lost on the turn ('${f%%|*}' became '${after:-no field}')" ;;
-  esac
+  # The emulator's keyboard can garble what adb types, so don't look for the exact word: the edit
+  # survived if the field still holds more than the saved words. The old bug put the saved words back.
+  orig=${f%%|*}
+  if [ -n "$after" ] && [ "$after" != "$orig" ] && [ "${after#"$orig"}" != "$after" ]; then
+    note "Editing a knot: the words being typed survived the turn ('$after')"
+  else
+    fail "Editing a knot: the words being typed were lost on the turn ('$orig' became '${after:-no field}')"
+  fi
   adb shell settings put system user_rotation 0; sleep 3
 fi
 adb shell am force-stop $PKG; sleep 2
