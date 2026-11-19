@@ -151,6 +151,8 @@ class ThreadView(ctx: Context, private val feel: Feel, private val listener: Lis
     private fun axisFor(k: Knot, n: Long): Float = when {
         k.done != null -> g.now + off(k.done!! - n)
         k.late(n) -> g.now + g.gap * 0.42f
+        // Waiting for a moment: just ahead of now, where it will be untied
+        k.cue != null -> g.now + g.gap * 1.1f
         else -> g.now + off(k.due - n)
     }
 
@@ -264,7 +266,7 @@ class ThreadView(ctx: Context, private val feel: Feel, private val listener: Lis
 
         // Heading: the name, today, and what's waiting
         val late = knots.count { it.late(n) }
-        val today = knots.count { it.done == null && it.due >= n && Words.dayStart(it.due) == Words.dayStart(n) }
+        val today = knots.count { it.done == null && it.cue == null && it.due >= n && Words.dayStart(it.due) == Words.dayStart(n) }
         text(c, "Nodo", g.headX, g.headY, if (shape == Shape.COVER_L) 26f else 30f, ivory, display, alpha = secA)
         text(c, Words.dateLine(n) + " · " + Words.hm(n), g.headX, g.headY + 20f, 12.5f, muted, alpha = secA)
         var sx = g.headX
@@ -495,7 +497,8 @@ class ThreadView(ctx: Context, private val feel: Feel, private val listener: Lis
                                 when {
                                     dr.across && k.done == null -> { Store.done(knots, k); feel.cinch() }
                                     k.done != null && !dr.across && dr.a > g.now + 12f -> { k.done = null; k.due = dr.due; feel.slip() }
-                                    k.done == null -> { k.due = dr.due; if (!dr.fresh) feel.tick(0.45f) }
+                                    // Moved in time: a knot waiting for a moment becomes a knot in time
+                                    k.done == null -> { k.due = dr.due; k.cue = null; if (!dr.fresh) feel.tick(0.45f) }
                                 }
                             }
                             if (dr.fresh || k.pending) listener.tie(k) else listener.changed()

@@ -115,7 +115,12 @@ class MainActivity : Activity(), ThreadView.Listener {
     /** From a notification (a knot's id), or the emulator's walk-through (open, add). */
     private fun handle(i: Intent?) {
         i ?: return
-        i.getStringExtra("add")?.let { s -> val p = Words.parse(s, System.currentTimeMillis()); knots += Knot(Store.newId(knots), p.text, p.due ?: System.currentTimeMillis() + HOUR); changed() }
+        i.getStringExtra("add")?.let { s ->
+            val q = cued(s); val p = Words.parse(q.first, System.currentTimeMillis())
+            knots += Knot(Store.newId(knots), p.text, p.due ?: System.currentTimeMillis() + HOUR, cue = if (p.due == null) q.second else null); changed()
+        }
+        // The emulator test sends a moment as the family's apps will
+        i.getStringExtra("cue")?.let { what -> Cues.fire(this, what); knots.clear(); knots += Store.load(this); thread.kick() }
         val id = i.getIntExtra("knot", -1)
         root.post {
             when {
@@ -206,10 +211,13 @@ class MainActivity : Activity(), ThreadView.Listener {
         getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(f.windowToken, 0)
         root.removeView(f)
         if (k == null) return
-        val p = Words.parse(f.text.toString(), System.currentTimeMillis())
+        val q = cued(f.text.toString())
+        val p = Words.parse(q.first, System.currentTimeMillis())
         if (p.text.isEmpty()) { knots.remove(k); feel.slip() }
         else {
             k.text = p.text; p.due?.let { k.due = it; feel.tick() }; k.pending = false
+            // A moment in the words ("when I'm home"): the knot waits for it, unless a time was given too
+            if (q.second != null && p.due == null) { k.cue = q.second; feel.tick() }
             Store.setSeenHint(this)
         }
         changed()
@@ -286,8 +294,13 @@ class MainActivity : Activity(), ThreadView.Listener {
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES; imeOptions = EditorInfo.IME_ACTION_DONE
             contentDescription = "Reminder"
             fun commit() {
-                val p = Words.parse(text.toString(), System.currentTimeMillis())
-                if (p.text.isNotEmpty() && (p.text != k.text || p.due != null)) { k.text = p.text; p.due?.let { k.due = it; k.done = null }; changed() }
+                val q = cued(text.toString())
+                val p = Words.parse(q.first, System.currentTimeMillis())
+                if (p.text.isNotEmpty() && (p.text != k.text || p.due != null || q.second != null)) {
+                    k.text = p.text; p.due?.let { k.due = it; k.done = null; k.cue = null }
+                    if (q.second != null && p.due == null) { k.cue = q.second; k.done = null }
+                    changed()
+                }
                 getSystemService(InputMethodManager::class.java)?.hideSoftInputFromWindow(windowToken, 0); clearFocus()
             }
             setOnEditorActionListener { _, a, _ -> if (a == EditorInfo.IME_ACTION_DONE) { commit(); true } else false }
@@ -302,7 +315,7 @@ class MainActivity : Activity(), ThreadView.Listener {
             chips.addView(text(name, 13.5f, Kit.Fixed.IVORY, 400).apply {
                 setPadding(px(13), px(8), px(13), px(8))
                 background = rounded(0xFF101613.toInt(), px(18).toFloat(), withAlpha(Kit.Fixed.CHAMPAGNE, 0.18f), px(1))
-                pressable(); setOnClickListener { feel.tick(); k.due = snap(t, System.currentTimeMillis()); k.done = null; changed() }
+                pressable(); setOnClickListener { feel.tick(); k.due = snap(t, System.currentTimeMillis()); k.done = null; k.cue = null; changed() }
             }, LinearLayout.LayoutParams(-2, -2).apply { if (i > 0) marginStart = px(6) })
         }
         body.addView(HorizontalScrollView(this).apply { isHorizontalScrollBarEnabled = false; overScrollMode = View.OVER_SCROLL_NEVER; addView(chips) })
@@ -345,11 +358,28 @@ class MainActivity : Activity(), ThreadView.Listener {
         return out
     }
 
+    // ---- Fluido: knots that wait for a moment ----------------------------------------------
+
+    private var settingsSheet: Sheet? = null
+    private val ASK_HOME = 41
+
+    /**
+     * The words without their moment, and the moment as a cue: home, or an installed app found by
+     * its name. An app Nodo can't find leaves the words as they were, so nothing is lost.
+     */
+    private fun cued(raw: String): Pair<String, String?> {
+        val c = Words.cue(raw)
+        if (c.home) return c.text to Knot.HOME
+        val name = c.app ?: return raw to null
+        val app = Cues.findApp(this, name) ?: return raw to null
+        return c.text to Knot.app(app.first, app.second)
+    }
+
     // ---- Settings: a tap on the name ------------------------------------------------------
 
     override fun settings() {
         if (tieField != null) endTie()
-        Sheet.show(this, "Nodo") { s ->
+        settingsSheet = Sheet.show(this, "Nodo") { s ->
             val ctx = this
             s.body.addView(label("Feel"))
             s.body.addView(Card(ctx).apply {
@@ -369,6 +399,21 @@ class MainActivity : Activity(), ThreadView.Listener {
                     endValue(if (notes) "On" else "Turn on", if (notes) Kit.MUTED else Kit.CHAMPAGNE)) {
                     startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, packageName))
                 })
+            })
+            s.body.addView(label("Moments"))
+            s.body.addView(Card(ctx).apply {
+                val home = Cues.homeNetwork(ctx)
+                val waitingHome = knots.count { it.waiting && it.cue == Knot.HOME }
+                val homeNote = if (home == null) "Type \"when I'm home, water the plants\" and the knot waits for home. Set home while you're on its Wi-Fi; Android asks for location so Nodo can read the network's name."
+                    else "Home is the Wi-Fi \"$home\"." + (if (waitingHome > 0) " $waitingHome waiting." else "") + Cues.lastWifi(ctx).let { if (it.isEmpty()) "" else " Last Wi-Fi: $it." }
+                row(Row(ctx, "Home", homeNote, endValue(if (home == null) "I'm home now" else "Forget", if (home == null) Kit.CHAMPAGNE else Kit.MUTED)) {
+                    if (home != null) { Cues.forgetHome(ctx); settingsSheet?.dismiss(); settings() }
+                    else if (!Cues.canReadWifi(ctx)) requestPermissions(arrayOf(android.Manifest.permission.ACCESS_FINE_LOCATION, android.Manifest.permission.ACCESS_COARSE_LOCATION), ASK_HOME)
+                    else setHomeNow()
+                })
+                val apps = knots.filter { it.waiting }.mapNotNull { k -> k.cue?.takeIf { it.startsWith("app:") }?.substringAfter('|') }.distinct()
+                row(Row(ctx, "Apps", if (apps.isEmpty()) "Type \"next time I open Spotify, add the album\" and the knot waits for that app. Fold Taskbar tells Nodo when it opens."
+                    else "Waiting for " + apps.joinToString(", ") + ". Fold Taskbar tells Nodo when one opens.", null))
             })
             s.body.addView(label("On the home screen"))
             widgetCard(s.body)
@@ -565,6 +610,13 @@ class MainActivity : Activity(), ThreadView.Listener {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults); permits()
+        if (requestCode == ASK_HOME && Cues.canReadWifi(this)) setHomeNow()
+    }
+
+    private fun setHomeNow() {
+        val name = Cues.setHome(this)
+        android.widget.Toast.makeText(this, if (name != null) "Home is \"$name\"" else "Couldn't read this Wi-Fi's name. Check Wi-Fi and location are on.", android.widget.Toast.LENGTH_LONG).show()
+        settingsSheet?.dismiss(); settings()
     }
 
     // ---- For the shapes test: where the parts that must be in view ended up -------------------

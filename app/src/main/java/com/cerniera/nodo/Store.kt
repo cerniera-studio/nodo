@@ -20,7 +20,8 @@ object Store {
         (0 until a.length()).map { i ->
             val o = a.getJSONObject(i)
             Knot(o.getInt("id"), o.getString("text"), o.getLong("due"), o.optInt("weight", 1),
-                if (o.has("done")) o.getLong("done") else null, o.optString("repeat", Knot.NONE))
+                if (o.has("done")) o.getLong("done") else null, o.optString("repeat", Knot.NONE),
+                cue = o.optString("cue").ifEmpty { null })
         }.toMutableList()
     }.getOrDefault(mutableListOf())
 
@@ -30,11 +31,14 @@ object Store {
         val keepFrom = System.currentTimeMillis() - 14 * DAY
         knots.filter { !it.pending && (it.done == null || it.done!! > keepFrom) }.forEach { k ->
             a.put(JSONObject().put("id", k.id).put("text", k.text).put("due", k.due).put("weight", k.weight)
-                .put("repeat", k.repeat).apply { k.done?.let { put("done", it) } })
+                .put("repeat", k.repeat).apply { k.done?.let { put("done", it) }; k.cue?.let { put("cue", it) } })
         }
         prefs(c).edit().putString("knots", a.toString()).apply()
         Reminders.arm(c, knots)
         NodoWidget.refresh(c)
+        // Knots waiting for a moment: watch Wi-Fi for home, and tell Fold Taskbar which apps matter
+        Cues.watch(c)
+        runCatching { c.contentResolver.notifyChange(CueProvider.URI, null) }
     }
 
     fun newId(knots: List<Knot>) = (knots.maxOfOrNull { it.id } ?: 0) + 1

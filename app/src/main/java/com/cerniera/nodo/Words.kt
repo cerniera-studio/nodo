@@ -27,6 +27,7 @@ object Words {
 
     /** When a knot is due (or was done), as a short line under its words. */
     fun whenLine(k: Knot, now: Long, z: ZoneId = ZoneId.systemDefault()): String {
+        if (k.done == null) k.cue?.let { return Knot.cueLine(it) }
         k.done?.let { d -> return "Done " + (if (dayStart(d, z) == dayStart(now, z)) hm(d, z) else dayName(d, z) + " " + hm(d, z)) }
         val d = k.due - now
         if (d < 0) {
@@ -48,6 +49,27 @@ object Words {
     }
 
     private val I = RegexOption.IGNORE_CASE
+
+    /**
+     * A moment in the words, Fluido (18 Nov 2026): "when I'm home, water the plants" or "next time I
+     * open Spotify add the album". Rules only; the phone's model can take over later, with these as
+     * the fallback. [app] is the app's name as typed, for the activity to find among installed apps.
+     */
+    class Cued(val text: String, val home: Boolean, val app: String?)
+
+    private val HOME_RE = Regex("""(?:^|\s|,)(?:when|once|as\s+soon\s+as)\s+(?:i'm|i\s+am|i\s+get|i\s+arrive|i'm\s+back|i\s+get\s+back)\s+(?:back\s+)?home\b|(?:^|\s|,)(?:when|once)\s+i\s+get\s+in\b|(?:^|\s|,)(?:when|once)\s+(?:back\s+)?home\b""", I)
+    private val APP_RE = Regex("""(?:^|\s|,)(?:when|next\s+time|the\s+next\s+time|whenever)\s+i(?:'m|\s+am)?\s+(?:open|opening|in|on|use|using|go\s+(?:in)?to)\s+([\w+.&'-]+(?-i:\s+[A-Z][\w+.&'-]*)?)""", I)
+
+    fun cue(raw: String): Cued {
+        var s = raw.trim()
+        var home = false; var app: String? = null
+        HOME_RE.find(s)?.let { m -> home = true; s = s.removeRange(m.range) }
+        if (!home) APP_RE.find(s)?.let { m -> app = m.groupValues[1].trim(); s = s.removeRange(m.range) }
+        if (!home && app == null) return Cued(raw, false, null)
+        // Tidy the joins the cue leaves behind: "water the plants", not ", water the plants"
+        s = s.replace(Regex("""^[\s,:;-]+|[\s,:;-]+$"""), "").replace(Regex("""\s{2,}"""), " ").replace(Regex("""^(to|then)\s+""", I), "")
+        return Cued(if (s.isEmpty()) "" else s[0].uppercase() + s.substring(1), home, app)
+    }
 
     /**
      * Reads a time out of [raw] and returns the words left over. A date with no time is 09:00; a time

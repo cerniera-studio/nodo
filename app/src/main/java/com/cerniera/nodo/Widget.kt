@@ -210,7 +210,8 @@ object Painter {
             cv.restore()
         }
 
-        val open = knots.filter { it.done == null && !it.pending }
+        // Knots waiting for a moment (home, an app) have no place in time, so the widget leaves them out
+        val open = knots.filter { it.done == null && !it.pending && it.cue == null }
         val late = open.filter { it.late(now) }.sortedBy { it.due }
         val ahead = open.filter { !it.late(now) }.sortedBy { it.due }
         val focus = late.firstOrNull() ?: ahead.firstOrNull()
