@@ -84,10 +84,19 @@ else
 fi
 adb shell am force-stop $PKG; sleep 2
 
-# ---- 2. A knot's words, mid-edit, across a turn (full screen)
+# ---- 2. A knot's words, mid-edit, across a turn (full screen). The knot's field isn't visible to
+# the screen reader, so its place and words come from the app's own record (layout.json: what)
+what() {  # "<text>|<l> <t> <r> <b>" of the open knot's field
+  for try in 1 2 3 4 5 6 7 8; do
+    w=$(adb shell run-as $PKG cat files/layout.json 2>/dev/null | python3 -c "import sys,json;w=json.load(sys.stdin)['what'];print(w['text']+'|'+' '.join(map(str,w['box'])))" 2>/dev/null)
+    [ -n "$w" ] && break; sleep 1
+  done
+  echo "$w"
+}
+adb shell run-as $PKG rm -f files/layout.json
 adb shell am start -W --windowingMode 1 -n $PKG/.MainActivity --es seed examples --es open next >/dev/null; sleep 5
 shot edit-open
-f=$(field @edit)
+f=$(what)
 if [ -z "$f" ]; then
   warn "Editing a knot: its detail didn't open; skipped"
 else
@@ -95,13 +104,13 @@ else
   adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 )); sleep 1
   adb shell input keyevent KEYCODE_MOVE_END
   adb shell input text "%sedited"; sleep 1; shot edit-upright
-  before=$(field @edit); before=${before%%|*}
+  adb shell run-as $PKG rm -f files/layout.json
   adb shell settings put system user_rotation 1; sleep 4; shot edit-turned
-  after=$(field @edit); after=${after%%|*}
-  echo "edit: '$before' -> '$after'" | tee -a $out
+  after=$(what); after=${after%%|*}
+  echo "edit: '${f%%|*}' -> '$after'" | tee -a $out
   case "$after" in
     *edited*) note "Editing a knot: the words being typed survived the turn ('$after')" ;;
-    *) fail "Editing a knot: the words being typed were lost on the turn ('$before' became '${after:-no field}')" ;;
+    *) fail "Editing a knot: the words being typed were lost on the turn ('${f%%|*}' became '${after:-no field}')" ;;
   esac
   adb shell settings put system user_rotation 0; sleep 3
 fi

@@ -679,8 +679,12 @@ class MainActivity : Activity(), ThreadView.Listener {
                 root.postDelayed({
                     val o = IntArray(2).also { thread.getLocationInWindow(it) }
                     val boxes = thread.parts().entries.joinToString(", ") { (k, r) -> "\"$k\": [${(r.left + o[0]).toInt()}, ${(r.top + o[1]).toInt()}, ${(r.right + o[0]).toInt()}, ${(r.bottom + o[1]).toInt()}]" }
+                    // The open knot's field, for the windows test: where it is and what it holds
+                    val wf = whatField?.takeIf { it.isAttachedToWindow }
+                    val what = wf?.let { f -> val p = IntArray(2).also { f.getLocationInWindow(it) }
+                        ", \"what\": {\"box\": [${p[0]}, ${p[1]}, ${p[0] + f.width}, ${p[1] + f.height}], \"text\": ${org.json.JSONObject.quote(f.text.toString())}}" } ?: ""
                     val json = "{\"shape\": \"${thread.shape}\", \"rotation\": ${display?.rotation ?: 0}, \"origin\": [${o[0]}, ${o[1]}], \"view\": [${thread.width}, ${thread.height}], " +
-                        "\"insets\": [${insets[0]}, ${insets[1]}, ${insets[2]}, ${insets[3]}], \"parts\": {$boxes}}"
+                        "\"insets\": [${insets[0]}, ${insets[1]}, ${insets[2]}, ${insets[3]}], \"parts\": {$boxes}$what}"
                     runCatching { java.io.File(filesDir, "layout.json").writeText(json) }
                 }, 400)
             }
