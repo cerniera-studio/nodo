@@ -46,7 +46,7 @@ shape() {  # the thread's shape, from the recorded layout
   done
   echo "$s"
 }
-# A field by its content description: "<text>|<l> <t> <r> <b>", from the screen as it is now
+# A field by its content description (or @edit: the first text field on screen): "<text>|<l> <t> <r> <b>", from the screen as it is now
 # (The screen reader can't capture a screen that is still animating, so try a few times.)
 field() {
   local r=""
@@ -61,7 +61,7 @@ import sys, re
 x = sys.stdin.read()
 for m in re.finditer(r'<node [^>]*>', x):
     n = m.group(0)
-    if 'content-desc=\"$1\"' in n:
+    if ('$1' == '@edit' and 'class=\"android.widget.EditText\"' in n) or 'content-desc=\"$1\"' in n:
         t = re.search(r' text=\"([^\"]*)\"', n).group(1)
         b = re.findall(r'\d+', re.search(r'bounds=\"([^\"]*)\"', n).group(1))
         print(t + '|' + ' '.join(b)); break"
@@ -87,7 +87,7 @@ adb shell am force-stop $PKG; sleep 2
 # ---- 2. A knot's words, mid-edit, across a turn (full screen)
 adb shell am start -W --windowingMode 1 -n $PKG/.MainActivity --es seed examples --es open next >/dev/null; sleep 5
 shot edit-open
-f=$(field Reminder)
+f=$(field @edit)
 if [ -z "$f" ]; then
   warn "Editing a knot: its detail didn't open; skipped"
 else
@@ -95,9 +95,9 @@ else
   adb shell input tap $(( ($1 + $3) / 2 )) $(( ($2 + $4) / 2 )); sleep 1
   adb shell input keyevent KEYCODE_MOVE_END
   adb shell input text "%sedited"; sleep 1; shot edit-upright
-  before=$(field Reminder); before=${before%%|*}
+  before=$(field @edit); before=${before%%|*}
   adb shell settings put system user_rotation 1; sleep 4; shot edit-turned
-  after=$(field Reminder); after=${after%%|*}
+  after=$(field @edit); after=${after%%|*}
   echo "edit: '$before' -> '$after'" | tee -a $out
   case "$after" in
     *edited*) note "Editing a knot: the words being typed survived the turn ('$after')" ;;
