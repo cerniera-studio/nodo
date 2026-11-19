@@ -14,7 +14,6 @@ import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
-import com.cerniera.kit.Hinge
 import com.cerniera.kit.Kit
 import com.cerniera.kit.withAlpha
 import kotlin.math.abs
@@ -123,9 +122,12 @@ class ThreadView(ctx: Context, private val feel: Feel, private val listener: Lis
     private fun relayout() {
         w = width / d; h = height / d
         if (w <= 0f || h <= 0f) return
-        val unfolded = Hinge.unfolded(context)
-        // The main screen turned has its crease across the middle (as Sveglia reads it)
-        shape = if (!unfolded) (if (h > w) Shape.COVER_P else Shape.COVER_L) else (if (w > h) Shape.MAIN_L else Shape.MAIN_P)
+        // Laid out from the window, not the fold (adaptive quality, 19 Nov 2026): a window at least
+        // 600dp both ways gets the main screen's shapes; anything smaller (the cover, half of the
+        // main screen in split screen, a pop-up window) gets the cover's. The main screen turned
+        // has its crease across the middle (as Sveglia reads it).
+        val big = minOf(w, h) >= 600f
+        shape = if (!big) (if (h > w) Shape.COVER_P else Shape.COVER_L) else (if (w > h) Shape.MAIN_L else Shape.MAIN_P)
         g = when (shape) {
             Shape.COVER_P -> G(O.V, ins.left + w * 0.2f, max(h * 0.2f, ins.top + 150f), h - ins.bottom - 50f, 66f, 1, true, ' ', ins.left + 22f, ins.top + 44f, 0f)
             Shape.COVER_L -> G(O.H, ins.top + (h - ins.top - ins.bottom) * 0.5f, ins.left + (w - ins.left - ins.right) * 0.22f, w - ins.right - 40f, 100f, 2, false, ' ', ins.left + 24f, ins.top + 40f, 118f)
