@@ -21,7 +21,9 @@
 
     <!-- Fold Widgets' look (finish, corners, glass images), which the widget follows -->
     <queries>
-        <provider android:authorities="com.fergusonconsultancy.foldwidgets.look" />
+        <!-- As a package, not a provider: the Kit already lists Cielo's provider, and two provider
+             entries here collide when the manifests merge -->
+        <package android:name="com.fergusonconsultancy.foldwidgets" />
         <!-- "When I open Spotify": finding the app by the name typed -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
