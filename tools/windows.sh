@@ -47,9 +47,16 @@ shape() {  # the thread's shape, from the recorded layout
   echo "$s"
 }
 # A field by its content description: "<text>|<l> <t> <r> <b>", from the screen as it is now
+# (The screen reader can't capture a screen that is still animating, so try a few times.)
 field() {
+  local r=""
+  for try in 1 2 3 4 5 6; do r=$(field_once "$1"); [ -n "$r" ] && break; sleep 1; done
+  echo "$r"
+}
+field_once() {
+  adb shell rm -f /sdcard/ui.xml
   adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
-  adb shell cat /sdcard/ui.xml | python3 -c "
+  adb shell cat /sdcard/ui.xml 2>/dev/null | python3 -c "
 import sys, re
 x = sys.stdin.read()
 for m in re.finditer(r'<node [^>]*>', x):
@@ -79,6 +86,7 @@ adb shell am force-stop $PKG; sleep 2
 
 # ---- 2. A knot's words, mid-edit, across a turn (full screen)
 adb shell am start -W --windowingMode 1 -n $PKG/.MainActivity --es seed examples --es open next >/dev/null; sleep 5
+shot edit-open
 f=$(field Reminder)
 if [ -z "$f" ]; then
   warn "Editing a knot: its detail didn't open; skipped"
