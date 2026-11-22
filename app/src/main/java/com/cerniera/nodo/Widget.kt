@@ -218,7 +218,7 @@ object Painter {
         val ahead = open.filter { !it.late(now) }.sortedBy { it.due }
         val focus = late.firstOrNull() ?: ahead.firstOrNull()
         val todayCount = ahead.count { Words.dayStart(it.due) == Words.dayStart(now) }
-        val tall = h >= 1.3f * w
+        val tall = Grammar.shape(w, h) == Grammar.Shape.COLUMN   // the family's shape test (h ≥ 1.25 w)
         val small = w < 170f || h < 120f
         // The whole composition grows with the widget, as Fold Widgets' do from 300 dp: a larger
         // widget is the same design at a larger scale, never a small one floating in space
