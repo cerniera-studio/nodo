@@ -202,6 +202,7 @@ class CueReceiver : BroadcastReceiver() {
 class CueProvider : ContentProvider() {
     override fun onCreate() = true
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor {
+        if (uri.lastPathSegment == "next") return next()
         val out = MatrixCursor(arrayOf("package"))
         context?.let { c -> Cues.waitingApps(c).forEach { out.addRow(arrayOf(it)) }; out.setNotificationUri(c.contentResolver, URI) }
         return out
@@ -211,5 +212,26 @@ class CueProvider : ContentProvider() {
     override fun delete(uri: Uri, selection: String?, args: Array<out String>?) = 0
     override fun update(uri: Uri, values: ContentValues?, selection: String?, args: Array<out String>?) = 0
 
-    companion object { val URI: Uri = Uri.parse("content://com.cerniera.nodo.cues/apps") }
+    /**
+     * The knot that matters most now, for Momento's notes in Fold Widgets (22 Nov 2026): the
+     * earliest late knot, else the next one due within two hours, else none. Its words leave Nodo
+     * only here, and only to apps holding com.cerniera.nodo.permission.NEXT (the manifest's
+     * path-permission), which only the family's apps ask for.
+     */
+    private fun next(): Cursor {
+        val out = MatrixCursor(arrayOf("id", "text", "due", "late", "weight", "late_count"))
+        val c = context ?: return out
+        val now = System.currentTimeMillis()
+        val open = Store.load(c).filter { it.open && it.cue == null && !it.pending }
+        val late = open.filter { it.due < now }.sortedBy { it.due }
+        val k = late.firstOrNull() ?: open.filter { it.due - now in 0..2 * HOUR }.minByOrNull { it.due }
+        k?.let { out.addRow(arrayOf<Any>(it.id, it.text, it.due, if (it.due < now) 1 else 0, it.weight, late.size)) }
+        out.setNotificationUri(c.contentResolver, NEXT)
+        return out
+    }
+
+    companion object {
+        val URI: Uri = Uri.parse("content://com.cerniera.nodo.cues/apps")
+        val NEXT: Uri = Uri.parse("content://com.cerniera.nodo.cues/next")
+    }
 }
