@@ -80,8 +80,26 @@ class MainActivity : Activity(), ThreadView.Listener {
             "examples" -> Store.save(this, Store.examples())
             // Mechack's own case on the Fold: one knot on the thread
             "one" -> Store.save(this, mutableListOf(Knot(1, "Run bath", System.currentTimeMillis() + 50 * MIN)))
+            "none" -> Store.save(this, mutableListOf())
         }
         knots = Store.load(this)
+        // Test only (22 Nov 2026): the widget at the family's size matrix, written to files/matrix-<tag>-WxH.png,
+        // and, with the examples, the picker's preview on the family's one canvas (960 px at 2.625 px per dp)
+        intent?.getStringExtra("matrix")?.let { tag ->
+            val ground = com.cerniera.kit.Ground.flat(0xFF1B211E.toInt())
+            val now = System.currentTimeMillis()
+            for (sz in listOf("192x164", "255x164", "255x267", "255x361", "128x267", "177x226", "177x300", "177x480", "385x226", "385x480", "560x300", "300x120", "110x110")) {
+                val (w, h) = sz.split("x").map { it.toFloat() }
+                val b = Painter.draw(this, w, h, 2.625f, com.cerniera.kit.Finish.VETRO, ground, knots, now, 24f).bitmap
+                java.io.File(filesDir, "matrix-$tag-$sz.png").outputStream().use { b.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            }
+            if (tag == "examples") {
+                val pv = Painter.draw(this, 255f, 164f, 2.625f, com.cerniera.kit.Finish.CARBONIO, com.cerniera.kit.Ground.flat(0xFF16191A.toInt()), knots, now, 24f).bitmap
+                val out = android.graphics.Bitmap.createBitmap(960, 960, android.graphics.Bitmap.Config.ARGB_8888)
+                android.graphics.Canvas(out).drawBitmap(pv, ((960 - pv.width) / 2).toFloat(), ((960 - pv.height) / 2).toFloat(), null)
+                java.io.File(filesDir, "preview_nodo.png").outputStream().use { out.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, it) }
+            }
+        }
 
         root = FrameLayout(this).apply { setBackgroundColor(Kit.Fixed.VISCONTI_GROUND) }
         thread = ThreadView(this, feel, this)

@@ -20,6 +20,7 @@ import android.util.TypedValue
 import android.widget.RemoteViews
 import com.cerniera.kit.Backdrop
 import com.cerniera.kit.Finish
+import com.cerniera.kit.Grammar
 import com.cerniera.kit.Ground
 import com.cerniera.kit.Kit
 import com.cerniera.kit.Surface
@@ -85,7 +86,8 @@ class NodoWidget : AppWidgetProvider() {
         }
 
         private fun draw(c: Context, m: AppWidgetManager, id: Int) {
-            val d = c.resources.displayMetrics.density
+            // The density of the screen in use now (Fold Widgets' and Riserva's method)
+            val d = Backdrop.density(c)
             val knots = Store.load(c)
             val now = System.currentTimeMillis()
             // Fold Widgets' look when following it, else Nodo's own (this also points the glass at the right images)
@@ -220,11 +222,13 @@ object Painter {
         val small = w < 170f || h < 120f
         // The whole composition grows with the widget, as Fold Widgets' do from 300 dp: a larger
         // widget is the same design at a larger scale, never a small one floating in space
-        val k = if (small) 0.88f else (min(w, h) / (if (tall) 180f else 200f)).coerceIn(1f, 1.6f)
-        val pad = (if (small) 12f else 16f) * k
+        // The family's one scale and inset (Kit Grammar, 22 Nov 2026): the same as every Fold Widgets
+        // widget of this size, so the two sit together as one set
+        val k = Grammar.scale(w, h)
+        val pad = Grammar.inset(w, h, k)
 
-        // Heading: the name as a label, and what's waiting
-        val headY = pad + 11f * k
+        // Heading: the name as a label, and what's waiting (the capitals' top at the inset, as the grammar sets every label)
+        val headY = pad + 11f * k * 0.72f
         text("NODO", pad, headY, 11f * k, muted, sans6, track = 0.14f)
         val summary = when {
             late.isNotEmpty() && !small -> "${late.size} overdue"
@@ -255,12 +259,16 @@ object Painter {
         fun bodyOf(kk: Knot) = when { kk.late(now) -> f.late; kk === focus -> f.glow; else -> ink }
 
         if (focus == null) {
-            // An empty thread: just the loose end, centred
-            val y = h * 0.5f - 12f * k
-            st.strokeWidth = 1.4f * k; st.color = a(ink, 0.55f); st.pathEffect = null; cv.drawLine(pad, y, w - pad - 14f * k, y, st)
-            fray(w - pad - 14f * k, y, false)
-            text("Nothing on the thread", pad, y + 30f * k, 14.5f * k, ink, sans6)
-            if (h > 120f) text("Tap to tie a knot", pad, y + 49f * k, 12.5f * k, muted, sans5)
+            // An empty thread (22 Nov 2026, the family's grammar): the statement rests on the foot, and the
+            // loose thread, the hero's quiet form, takes the middle of the room between label and words,
+            // drawn with a gentle sag so even an empty widget is the thread, not an empty box
+            val top = Grammar.statement(c, cv, surface, "Nothing on the thread", if (h > 120f) "Tap to tie a knot" else null, pad, h - pad, w - 2 * pad, k)
+            val y = (headY + 6f * k + top) / 2f
+            val end = w - pad - 14f * k
+            val sag = ((top - headY) * 0.12f).coerceIn(0f, 18f * k)
+            st.strokeWidth = 1.6f * k; st.color = a(ink, 0.55f); st.pathEffect = null
+            cv.drawPath(Path().apply { moveTo(pad, y - sag / 2); quadTo((pad + end) / 2, y + sag, end, y - sag / 2) }, st)
+            fray(end, y - sag / 2, false)
             return Picture(bmp, null, null, "Nodo. Nothing on the thread. Tap to tie a knot.")
         }
 
