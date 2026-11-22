@@ -58,6 +58,15 @@ for seed in examples one; do
     adb exec-out screencap -p > "shot-widget-$seed-${size%%:*}.png"
   done
 done
+# The family's size matrix (Kit Grammar, 22 Nov 2026), empty and with the examples, and the picker's preview
+for seed in none examples; do
+  adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity --es seed $seed --es matrix $seed >/dev/null; sleep 4
+  for sz in 192x164 255x164 255x267 255x361 128x267 177x226 177x300 177x480 385x226 385x480 560x300 300x120 110x110; do
+    adb exec-out run-as $PKG cat files/matrix-$seed-$sz.png > "shot-matrix-$seed-$sz.png" 2>/dev/null
+  done
+done
+adb exec-out run-as $PKG cat files/preview_nodo.png > shot-preview-nodo.png 2>/dev/null
+adb shell am force-stop $PKG; adb shell am start -W -n $PKG/.MainActivity --es seed one >/dev/null; sleep 3
 # Every finish (Fold Widgets' ten, from the Kit) at 4x2 on the cover, over the banded ground
 for fin in VETRO CRISTALLO GOCCIA SMOKE MEMBRANE ROSSO AVORIO CARBONIO CERAMICA VISCONTI PAPER; do
   adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open widget --es size 380x180 --es finish $fin; sleep 3
