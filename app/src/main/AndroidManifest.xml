@@ -21,6 +21,12 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
+    <!-- Who may read the knot that matters most (its words): the family's apps (Momento in Fold Widgets) -->
+    <permission
+        android:name="com.cerniera.nodo.permission.NEXT"
+        android:label="See the knot that matters most in Nodo"
+        android:protectionLevel="normal" />
+
     <!-- Fold Widgets' look (finish, corners, glass images), which the widget follows -->
     <queries>
         <!-- As a package, not a provider: the Kit already lists Cielo's provider, and two provider
@@ -65,7 +71,10 @@
         <provider
             android:name=".CueProvider"
             android:authorities="com.cerniera.nodo.cues"
-            android:exported="true" />
+            android:exported="true">
+            <!-- The next knot carries words, so it needs the family's permission; the app list doesn't -->
+            <path-permission android:path="/next" android:readPermission="com.cerniera.nodo.permission.NEXT" />
+        </provider>
         <receiver android:name=".ActionReceiver" android:exported="false" />
         <!-- The thread on the home screen -->
         <receiver android:name=".NodoWidget" android:exported="true" android:label="Nodo · Thread">

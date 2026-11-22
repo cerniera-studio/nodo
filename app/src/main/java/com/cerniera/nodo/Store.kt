@@ -40,6 +40,9 @@ object Store {
         Cues.watch(c)
         Cues.classify(c, knots)
         runCatching { c.contentResolver.notifyChange(CueProvider.URI, null) }
+        // Momento (Fold Widgets) shows the knot that matters most: tell it to look again
+        runCatching { c.contentResolver.notifyChange(CueProvider.NEXT, null) }
+        runCatching { c.sendBroadcast(android.content.Intent("com.cerniera.MOMENTO_REFRESH").setPackage("com.fergusonconsultancy.foldwidgets")) }
     }
 
     fun newId(knots: List<Knot>) = (knots.maxOfOrNull { it.id } ?: 0) + 1
