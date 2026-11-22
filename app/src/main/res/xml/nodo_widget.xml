@@ -11,5 +11,5 @@
     android:widgetCategory="home_screen"
     android:updatePeriodMillis="1800000"
     android:initialLayout="@layout/widget"
-    android:previewImage="@mipmap/ic_launcher"
+    android:previewImage="@drawable/preview_widget"
     android:description="@string/widget_desc" />
