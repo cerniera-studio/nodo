@@ -32,6 +32,7 @@
         <!-- As a package, not a provider: the Kit already lists Cielo's provider, and two provider
              entries here collide when the manifests merge -->
         <package android:name="com.fergusonconsultancy.foldwidgets" />
+        <package android:name="com.cerniera.settimana" />
         <!-- "When I open Spotify": finding the app by the name typed -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -74,6 +75,8 @@
             android:exported="true">
             <!-- The next knot carries words, so it needs the family's permission; the app list doesn't -->
             <path-permission android:path="/next" android:readPermission="com.cerniera.nodo.permission.NEXT" />
+            <!-- Settimana's margins: the week's knots, words included, so the same permission -->
+            <path-permission android:path="/week" android:readPermission="com.cerniera.nodo.permission.NEXT" />
         </provider>
         <receiver android:name=".ActionReceiver" android:exported="false" />
         <!-- The thread on the home screen -->

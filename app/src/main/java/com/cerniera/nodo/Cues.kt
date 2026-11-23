@@ -203,6 +203,7 @@ class CueProvider : ContentProvider() {
     override fun onCreate() = true
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor {
         if (uri.lastPathSegment == "next") return next()
+        if (uri.lastPathSegment == "week") return week(uri)
         val out = MatrixCursor(arrayOf("package"))
         context?.let { c -> Cues.waitingApps(c).forEach { out.addRow(arrayOf(it)) }; out.setNotificationUri(c.contentResolver, URI) }
         return out
@@ -230,7 +231,27 @@ class CueProvider : ContentProvider() {
         return out
     }
 
+    /**
+     * The knots for a stretch of days, for Settimana's margins (23 Nov 2026): every knot in time
+     * due between `from` and `to` (epoch ms query parameters), done or not, and every open late
+     * knot whatever its day (Settimana gathers those on today). Words leave Nodo here only to apps
+     * holding com.cerniera.nodo.permission.NEXT, as /next. Knots waiting for a moment aren't sent.
+     */
+    private fun week(uri: Uri): Cursor {
+        val out = MatrixCursor(arrayOf("id", "text", "due", "weight", "done", "late"))
+        val c = context ?: return out
+        val now = System.currentTimeMillis()
+        val from = uri.getQueryParameter("from")?.toLongOrNull() ?: return out
+        val to = uri.getQueryParameter("to")?.toLongOrNull() ?: return out
+        Store.load(c).filter { it.cue == null && !it.pending && (it.due in from until to || it.late(now)) }.sortedBy { it.due }.forEach { k ->
+            out.addRow(arrayOf<Any>(k.id, k.text, k.due, k.weight, if (k.done != null) 1 else 0, if (k.late(now)) 1 else 0))
+        }
+        out.setNotificationUri(c.contentResolver, WEEK)
+        return out
+    }
+
     companion object {
+        val WEEK: Uri = Uri.parse("content://com.cerniera.nodo.cues/week")
         val URI: Uri = Uri.parse("content://com.cerniera.nodo.cues/apps")
         val NEXT: Uri = Uri.parse("content://com.cerniera.nodo.cues/next")
     }
