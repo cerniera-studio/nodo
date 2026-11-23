@@ -42,6 +42,7 @@ object Store {
         runCatching { c.contentResolver.notifyChange(CueProvider.URI, null) }
         // Momento (Fold Widgets) shows the knot that matters most: tell it to look again
         runCatching { c.contentResolver.notifyChange(CueProvider.NEXT, null) }
+        runCatching { c.contentResolver.notifyChange(CueProvider.WEEK, null) }
         runCatching { c.sendBroadcast(android.content.Intent("com.cerniera.MOMENTO_REFRESH").setPackage("com.fergusonconsultancy.foldwidgets")) }
     }
 
