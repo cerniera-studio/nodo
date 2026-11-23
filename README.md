@@ -16,5 +16,5 @@ Every build on `main` publishes a release with `Nodo.apk`; other branches publis
 The emulator job checks all four shapes of the phone, ties and drags knots, and waits for a real
 reminder to arrive as a notification.
 
-Signed with a fixed key in `signing/` so new builds install over old ones. Personal sideloading
-only: never use it for a store release.
+Signed with a fixed, encrypted key in `signing/` so new builds install over old ones. Its password
+is the org secret `CERNIERA_SIGNING_PASSWORD`. Personal sideloading only: never use it for a store release.
