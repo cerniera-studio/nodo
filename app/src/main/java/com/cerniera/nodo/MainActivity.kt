@@ -517,16 +517,17 @@ class MainActivity : Activity(), ThreadView.Listener {
         fun fill() {
             lookBox.removeAllViews()
             if (Look.foldWidgets(ctx)) {
-                val follows = Look.follows(ctx)
+                // One look for every Cerniera widget (26 Nov 2026): chosen in Fold Widgets, nowhere else
                 val now = Look.read(ctx)
                 val corner = Look.CORNERS.firstOrNull { it.second == now.radius }?.first ?: "${now.radius} dp"
                 lookBox.addView(Card(ctx).apply {
-                    row(Row(ctx, "Follow Fold Widgets",
-                        if (follows) "Its finish, corners and glass images dress this widget too: ${now.finish.short}, $corner corners. Change them in Fold Widgets."
-                        else "This widget keeps its own look, chosen below.",
-                        Toggle(ctx, follows) { on -> Look.setFollows(ctx, on); feel.tick(); fill(); draw() }))
+                    row(Row(ctx, "Fold Widgets' look",
+                        "Every Cerniera widget wears the same finish, corners and glass: ${now.finish.short}, $corner corners. Change them in Fold Widgets.",
+                        endValue("Open", Kit.CHAMPAGNE)) {
+                        packageManager.getLaunchIntentForPackage(com.cerniera.kit.Family.HOST)?.let { startActivity(it) }
+                    })
                 }, LinearLayout.LayoutParams(-1, -2).apply { bottomMargin = px(6) })
-                if (follows) return
+                return
             }
             lookBox.addView(label("Finish"))
             lookBox.addView(Finishes.grid(ctx, Store.widgetFinish(ctx)) { f -> feel.tick(); Store.setWidgetFinish(ctx, f); draw() })
@@ -552,8 +553,9 @@ class MainActivity : Activity(), ThreadView.Listener {
         into.addView(lookBox)
 
         val seeing = com.cerniera.kit.Backdrop.canReadWallpaper()
+        // With Fold Widgets the glass reads the picture Fold Widgets hands over (26 Nov 2026): no ask here
         into.addView(Card(ctx).apply {
-            row(Row(ctx, "See the wallpaper", if (seeing) "The finishes read the wallpaper behind the widget: where Fold Widgets' live mode sees it, or from your first tap." else
+            if (!Look.foldWidgets(ctx)) row(Row(ctx, "See the wallpaper", if (seeing) "The finishes read the wallpaper behind the widget: where Fold Widgets' live mode sees it, or from your first tap." else
                 "Vetro and Cristallo show the wallpaper itself only with all-files access, as in Fold Widgets. Without it they take its colours.",
                 endValue(if (seeing) "Allowed" else "Allow", if (seeing) Kit.MUTED else Kit.CHAMPAGNE)) {
                 if (!seeing) startActivity(Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, Uri.parse("package:$packageName")))
