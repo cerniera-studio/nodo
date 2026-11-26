@@ -126,9 +126,10 @@ if [ -s fw.apk ] && adb install -r fw.apk >/dev/null 2>&1; then
   adb logcat -c
   adb shell am force-stop $PKG; adb shell am start -n $PKG/.MainActivity --es open settings; sleep 4
   adb shell input swipe 540 1700 540 300 300; sleep 1; shot follow
-  line=$(adb logcat -d -s Nodo:I | grep "look:" | tail -1)
+  # Since 26 Nov the Kit's Family reads the look and logs it under "Cerniera"
+  line=$(adb logcat -d -s Nodo:I Cerniera:I | grep "look" | tail -1)
   case "$line" in
-    *"from Fold Widgets"*) note "Follows Fold Widgets: ${line#*look: }" ;;
+    *"(host)"*|*"from Fold Widgets"*) note "Follows Fold Widgets: ${line#*: }" ;;
     *) note "::error::Nodo did not follow Fold Widgets' look (${line#*look: })" ;;
   esac
 
@@ -162,7 +163,7 @@ if [ -s fw.apk ] && adb install -r fw.apk >/dev/null 2>&1; then
   timeout 20 adb shell "run-as $FW cat shared_prefs/fold_widgets.xml" < /dev/null 2>/dev/null | grep -E 'live_note|follower_seats' | sed 's/^ */  Fold Widgets: /' >> walk.txt
   live=$(adb shell dumpsys accessibility | grep -c LiveService)
   adb logcat -d -s FoldWidgets:I | tail -8 | sed 's/^/  /' >> walk.txt
-  seat=$(adb logcat -d -s Nodo:I | grep "seats:" | tail -1)
+  seat=$(adb logcat -d -s Nodo:I Cerniera:I | grep "seats" | tail -1)
   case "$seat" in
     *"placed by Fold Widgets"*) note "Seat from live mode: ${seat#*seats: }" ;;
     *) note "::error::Nodo's widget was not placed by live mode (pin dialog: ${b:-not found}, live mode in accessibility: $live)" ;;
