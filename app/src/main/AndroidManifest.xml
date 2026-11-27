@@ -73,10 +73,10 @@
             android:name=".CueProvider"
             android:authorities="com.cerniera.nodo.cues"
             android:exported="true">
-            <!-- The next knot carries words, so it needs the family's permission; the app list doesn't -->
-            <path-permission android:path="/next" android:readPermission="com.cerniera.nodo.permission.NEXT" />
-            <!-- Settimana's margins: the week's knots, words included, so the same permission -->
-            <path-permission android:path="/week" android:readPermission="com.cerniera.nodo.permission.NEXT" />
+            <!-- The next knot and the week's knots carry words: read by the family only, checked by
+                 the caller's package in CueProvider (27 Nov 2026). A permission of Nodo's own was
+                 granted only to apps installed after Nodo, so Fold Widgets installed first never
+                 saw a knot (the widget audit found it). -->
         </provider>
         <receiver android:name=".ActionReceiver" android:exported="false" />
         <!-- The thread on the home screen -->

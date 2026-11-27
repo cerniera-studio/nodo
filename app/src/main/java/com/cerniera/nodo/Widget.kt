@@ -95,9 +95,16 @@ class NodoWidget : AppWidgetProvider() {
             val finish = look.finish
             // What lies behind this widget: the slice of wallpaper at its seat, or the wallpaper's colours
             val ground = Backdrop.ground(c, Store.store(c), id, Seats.live(c, id))
+            val sizes = sizes(m, id)
+            if (sizes.isEmpty()) return
+            // Sent through the Kit's WidgetBudget (27 Nov 2026): a refusal is redrawn smaller, never left standing
+            com.cerniera.kit.WidgetBudget.send(c, m, id) { build(c, id, sizes, d, finish, ground, knots, now, look.radius.toFloat()) }
+        }
+
+        private fun build(c: Context, id: Int, sizes: List<SizeF>, d: Float, finish: Finish, ground: Ground, knots: List<Knot>, now: Long, radius: Float): RemoteViews {
             val map = LinkedHashMap<SizeF, RemoteViews>()
-            for ((index, s) in sizes(m, id).withIndex()) {
-                val pic = Painter.draw(c, s.width, s.height, d, finish, ground, knots, now, look.radius.toFloat())
+            for ((index, s) in sizes.withIndex()) {
+                val pic = Painter.draw(c, s.width, s.height, d, finish, ground, knots, now, radius)
                 val rv = RemoteViews(c.packageName, R.layout.widget)
                 rv.setImageViewBitmap(R.id.face, pic.bitmap)
                 rv.setContentDescription(R.id.face, pic.spoken)
@@ -119,9 +126,7 @@ class NodoWidget : AppWidgetProvider() {
                 } else rv.setViewVisibility(R.id.done, android.view.View.GONE)
                 map[s] = rv
             }
-            if (map.isEmpty()) return
-            runCatching { m.updateAppWidget(id, if (map.size == 1) map.values.first() else RemoteViews(map)) }
-                .onFailure { android.util.Log.w("Nodo", "widget $id not drawn", it) }
+            return if (map.size == 1) map.values.first() else RemoteViews(map)
         }
 
         /** Opens Nodo at the knot. A tap on the whole widget gives its exact bounds: its seat. */
@@ -169,7 +174,7 @@ object Painter {
 
     fun draw(c: Context, w: Float, h: Float, density: Float, finish: Finish, ground: Ground, knots: List<Knot>, now: Long, radius: Float = 24f): Picture {
         // Kept within what a launcher accepts for a widget's picture
-        val d = min(density, sqrt(1_600_000f / (w * h)))
+        val d = min(density, sqrt(1_600_000f * com.cerniera.kit.WidgetBudget.scale(c) / (w * h)))
         val bmp = Bitmap.createBitmap(max(1, (w * d).toInt()), max(1, (h * d).toInt()), Bitmap.Config.ARGB_8888)
         val cv = Canvas(bmp); cv.scale(d, d)
         val p = Paint(Paint.ANTI_ALIAS_FLAG); val st = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeCap = Paint.Cap.ROUND }
