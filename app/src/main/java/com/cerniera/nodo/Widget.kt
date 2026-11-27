@@ -103,8 +103,10 @@ class NodoWidget : AppWidgetProvider() {
 
         private fun build(c: Context, id: Int, sizes: List<SizeF>, d: Float, finish: Finish, ground: Ground, knots: List<Knot>, now: Long, radius: Float): RemoteViews {
             val map = LinkedHashMap<SizeF, RemoteViews>()
-            for ((index, s) in sizes.withIndex()) {
-                val pic = Painter.draw(c, s.width, s.height, d, finish, ground, knots, now, radius)
+            // Plus the sizes' shared part, for a launcher stack whose real box none of them fits (27 Nov 2026)
+            for ((index, e) in com.cerniera.kit.WidgetSizes.withShared(sizes).withIndex()) {
+                val (s, up) = e
+                val pic = Painter.draw(c, s.width, s.height, d * up, finish, ground, knots, now, radius)
                 val rv = RemoteViews(c.packageName, R.layout.widget)
                 rv.setImageViewBitmap(R.id.face, pic.bitmap)
                 rv.setContentDescription(R.id.face, pic.spoken)
