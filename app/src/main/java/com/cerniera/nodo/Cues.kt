@@ -202,8 +202,11 @@ class CueReceiver : BroadcastReceiver() {
 class CueProvider : ContentProvider() {
     override fun onCreate() = true
     override fun query(uri: Uri, projection: Array<out String>?, selection: String?, args: Array<out String>?, sort: String?): Cursor {
-        if (uri.lastPathSegment == "next") return next()
-        if (uri.lastPathSegment == "week") return week(uri)
+        // Words only for the family, whatever order the apps were installed in (27 Nov 2026)
+        if (uri.lastPathSegment == "next" || uri.lastPathSegment == "week") {
+            if (!com.cerniera.kit.FamilyRules.isFamily(callingPackage)) throw SecurityException("Nodo's knots are shared with Cerniera's apps only")
+            return if (uri.lastPathSegment == "next") next() else week(uri)
+        }
         val out = MatrixCursor(arrayOf("package"))
         context?.let { c -> Cues.waitingApps(c).forEach { out.addRow(arrayOf(it)) }; out.setNotificationUri(c.contentResolver, URI) }
         return out
