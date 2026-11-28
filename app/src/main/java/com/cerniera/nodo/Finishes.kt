@@ -40,7 +40,7 @@ object Finishes {
     fun grid(c: Context, chosen: Finish, picked: (Finish) -> Unit): LinearLayout {
         val col = LinearLayout(c).apply { orientation = LinearLayout.VERTICAL }
         val tiles = ArrayList<Tile>()
-        Finish.values().toList().chunked(3).forEach { row ->
+        Finish.alphabetical().chunked(3).forEach { row ->
             val r = LinearLayout(c).apply { orientation = LinearLayout.HORIZONTAL }
             row.forEach { f ->
                 val t = Tile(c, f, f == chosen) { pick -> tiles.forEach { it.chosen = it.finish == pick }; picked(pick) }
@@ -87,6 +87,8 @@ object Finishes {
             orientation = VERTICAL
             addView(picture, LayoutParams(-1, c.px(76)))
             addView(name)
+            // A line on what each finish is (28 Nov 2026)
+            addView(c.text(finish.about, 11f, Kit.MUTED, 400).apply { setPadding(c.px(2), c.px(2), 0, 0) })
             isClickable = true
             setOnClickListener { onPick(finish) }
             contentDescription = "${finish.short} finish"
